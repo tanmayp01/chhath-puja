@@ -1,9 +1,15 @@
 # Chhath Ghat Online
 
-A walkable 3D Chhath Puja ghat in the browser, with a festival guide for Chhath 2026 (13–16 Nov).
+Can't go home for Chhath? Live all four days of Chhath Puja 2026 (13–16 Nov) on a 3D ghat in the browser.
 
-- Offer Sandhya Arghya at sunset, keep jaagran through the night, offer Usha Arghya at dawn
-- Float diyas, light the kosi, collect thekua, sugarcane and a soop from the stalls
+- Play as a vratin (female) or vrati (male), with your name
+- Din 1 Nahay Khay: holy dip, buy lauki, cook kaddu-bhaat
+- Din 2 Kharna: mango wood, gur and chawal, cook rasiya-kheer, share prasad with neighbours
+- Din 3 Sandhya Arghya: fry thekua, pack the daura, arghya to the setting sun, light a kosi, float a diya
+- Din 4 Usha Arghya: arghya to the rising sun, paran
+- Cooking mini-game, chatty neighbours, "send wishes home" via WhatsApp, progress saved in the browser
+- Chhath geet (Sharda Sinha and more) streamed from the labels' official YouTube uploads; no audio is bundled
+- Support panel with a UPI QR
 - Festival guide: the four days with 2026 dates, arghya timings, soop contents, ghat etiquette, live countdown
 - Desktop (WASD + drag to look + E) and phone (joystick + tap button) controls
 - Synthesised ambient sound (river, drone, bells, shankh), no audio files

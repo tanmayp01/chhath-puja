@@ -9,6 +9,7 @@ if (isTouch) document.body.classList.add('touch');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const SANDHYA = new Date('2026-11-15T17:01:00+05:30');
+const SAVE_KEY = 'chhath-ghat-v2';
 
 const canvas = $('#scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -20,13 +21,15 @@ renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x000000, 70, 330);
-const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 2000);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 2000);
 
 const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[(Math.random() * arr.length) | 0];
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+const angleTo = (from, to) => { const d = to - from; return Math.atan2(Math.sin(d), Math.cos(d)); };
 
 // ---------------------------------------------------------------------------
 // Ghat layout
@@ -34,13 +37,20 @@ const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const STEPS = 8, STEP_D = 1.25, STEP_H = 0.3;
 const TOP = STEPS * STEP_H;               // promenade height
 const PROM_Z = STEPS * STEP_D;            // where the promenade starts
-const EYE = 1.6;
 
 function groundY(z) {
   if (z >= PROM_Z) return TOP;
   if (z >= 0) return (Math.floor(z / STEP_D) + 1) * STEP_H;
   return Math.max(-0.75, z * 0.4);
 }
+
+// key places
+const RING = { x: 0, z: -1.6 };
+const SABZI = { x: 24, z: PROM_Z + 4 };
+const FRUIT = { x: -24, z: PROM_Z + 4 };
+const SOOP = { x: -10, z: PROM_Z + 4 };
+const CHULHA = { x: 38, z: PROM_Z + 6 };
+const WOOD = { x: 45, z: PROM_Z + 8.5 };
 
 // ---------------------------------------------------------------------------
 // Sky + sun
@@ -51,8 +61,9 @@ const SKY_KEYS = [ // elevation (deg) -> zenith, horizon, sun colour, sun streng
   { e: -1,  z: 0x2a3470, h: 0xe0613a, s: 0xff6a2a, si: 0.6, a: 0.42 },
   { e: 3,   z: 0x3d5591, h: 0xff9a4a, s: 0xff8a3a, si: 1.0, a: 0.6 },
   { e: 9,   z: 0x4f78b8, h: 0xf7c486, s: 0xffb466, si: 1.2, a: 0.8 },
+  { e: 20,  z: 0x3d7fd6, h: 0xf0d3a8, s: 0xffe2b8, si: 1.2, a: 0.95 },
 ];
-const sky = { elev: 4, az: -32 };
+const sky = { elev: 14, az: 32 };
 const cA = new THREE.Color(), cB = new THREE.Color();
 function sampleSky(elev) {
   let i = 0;
@@ -116,6 +127,9 @@ scene.add(sunLight);
 const ghatGlow = new THREE.PointLight(0xffa040, 0, 40, 1.6); // warm diya wash at night
 ghatGlow.position.set(0, 3, 4);
 scene.add(ghatGlow);
+const fireLight = new THREE.PointLight(0xff7a1a, 0, 8, 1.5); // chulha
+fireLight.position.set(CHULHA.x, TOP + 1, CHULHA.z - 0.2);
+scene.add(fireLight);
 
 // ---------------------------------------------------------------------------
 // River
@@ -148,7 +162,6 @@ const water = new THREE.Mesh(
         vec3 col = mix(deep * (0.35 + 0.65*length(skyH)), skyc, clamp(fres * 1.1 + 0.2, 0.0, 1.0));
         float sd = max(dot(R, sunDir), 0.0);
         col += sunColor * sunVis * (pow(sd, 220.0) * 5.0 + pow(sd, 18.0) * 0.35);
-        // warm shimmer from the diyas along the bank
         col += vec3(1.0, 0.55, 0.18) * glowAmt * smoothstep(-10.0, 0.0, vW.z) * pow(n2 * n3, 3.0) * 0.9;
         float dist = length(cameraPosition.xz - vW.xz);
         col = mix(col, skyH * 0.9, smoothstep(120.0, 300.0, dist));
@@ -161,7 +174,7 @@ const water = new THREE.Mesh(
 scene.add(water);
 
 // ---------------------------------------------------------------------------
-// Glow points (diya flames, bulbs) — one draw call each set
+// Glow points (diya flames, bulbs) — one draw call per set
 // ---------------------------------------------------------------------------
 const glowSets = [];
 class Glow {
@@ -222,10 +235,11 @@ class Glow {
 // ---------------------------------------------------------------------------
 const M = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, ...opts });
 const mats = {
-  stoneA: M(0xc9a77c), stoneB: M(0xb8946a), prom: M(0xa98a68), mud: M(0x6b5a45),
+  stoneA: M(0xc9a77c), stoneB: M(0xb8946a), prom: M(0xa98a68), mud: M(0x6b5a45), plaster: M(0xc49a6c),
   cane: M(0x5d8a2a), caneTop: M(0x7fae3a), red: M(0xc81e1e), yellow: M(0xf2b705), clay: M(0xa0522d),
   bamboo: M(0xd4a55a), banana: M(0xf3d34a), orange: M(0xf28c28), lime: M(0x9ccc3c), coconut: M(0x6b4423),
-  thekua: M(0x9a5b22), wood: M(0x6b4a2b), skin: M(0x8d5a3b), hair: M(0x1c1410), white: M(0xf3efe6),
+  thekua: M(0x9a5b22), wood: M(0x6b4a2b), log: M(0x5a3d22), skin: M(0x8d5a3b), hair: M(0x1c1410), white: M(0xf3efe6),
+  brass: M(0xc9a23a, { metalness: 0.6, roughness: 0.35 }), sack: M(0xd8c39a), lauki: M(0x7cb342), soot: M(0x2a1d16),
   far: M(0x2b3326), farTree: M(0x1e2a1c), leaf: M(0x2f5d22), trunk: M(0x4a3628),
   cloth: M(0xe8590c, { side: THREE.DoubleSide }), clothY: M(0xf59f00, { side: THREE.DoubleSide }),
   ring: new THREE.MeshBasicMaterial({ color: 0xffc04d, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
@@ -248,14 +262,16 @@ function signTexture(lines, bg = '#d9480f', fg = '#fff4e0', w = 512, h = 160) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
-function sign(lines, x, y, z, w = 3.2, h = 1, opts) {
+const signs = [];
+function sign(lines, x, y, z, w = 3.2, h = 1, bg = '#7c2d12') {
   // two back-to-back planes so the text reads correctly from both sides
-  const mat = new THREE.MeshBasicMaterial({ map: signTexture(lines, opts?.bg, opts?.fg), toneMapped: false });
+  const mat = new THREE.MeshBasicMaterial({ map: signTexture(lines, bg), toneMapped: false });
   const g = new THREE.Group();
   const front = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
   const back = front.clone(); back.rotation.y = Math.PI;
-  g.add(front, back); g.position.set(x, y, z); g.material = mat;
+  g.add(front, back); g.position.set(x, y, z);
   scene.add(g);
+  signs.push(() => { mat.map = signTexture(lines, bg); mat.needsUpdate = true; });
   return g;
 }
 
@@ -276,11 +292,9 @@ function buildGhat() {
   const prom = box(130, 1, 40, mats.prom);
   prom.position.set(0, TOP - 0.5, PROM_Z + 20);
   scene.add(prom);
-  // muddy riverbed visible at the edge
   const bed = new THREE.Mesh(new THREE.PlaneGeometry(130, 6).rotateX(-Math.PI / 2), mats.mud);
   bed.position.set(0, -0.6, -2.5);
   scene.add(bed);
-  // side walls
   for (const sx of [-55, 55]) place(box(2, TOP + 1.2, PROM_Z + 4, mats.stoneB), sx, (TOP + 1.2) / 2 - 0.6, PROM_Z / 2);
 }
 
@@ -293,17 +307,13 @@ function buildFarBank() {
     const c = new THREE.Mesh(crownGeo, mats.farTree); c.scale.set(s * rand(0.9, 1.5), s, s); c.position.set(x, 4 + s * 4, z); scene.add(c);
     const t = new THREE.Mesh(trunkGeo, mats.farTree); t.position.set(x, 3, z); scene.add(t);
   }
-  // far temple silhouette
   place(box(10, 10, 8, mats.farTree), 70, 6, -282);
-  const sh = new THREE.Mesh(new THREE.ConeGeometry(5, 14, 4), mats.farTree); place(sh, 70, 18, -282);
+  place(new THREE.Mesh(new THREE.ConeGeometry(5, 14, 4), mats.farTree), 70, 18, -282);
 }
 
 function makeTree(x, z, s = 1) {
-  const t = cyl(0.25 * s, 0.4 * s, 4 * s, mats.trunk, 7); place(t, x, TOP + 2 * s, z);
-  for (let i = 0; i < 4; i++) {
-    const c = sph(rand(1.6, 2.4) * s, mats.leaf, 8);
-    place(c, x + rand(-1.4, 1.4) * s, TOP + rand(4, 5.6) * s, z + rand(-1.2, 1.2) * s);
-  }
+  place(cyl(0.25 * s, 0.4 * s, 4 * s, mats.trunk, 7), x, TOP + 2 * s, z);
+  for (let i = 0; i < 4; i++) place(sph(rand(1.6, 2.4) * s, mats.leaf, 8), x + rand(-1.4, 1.4) * s, TOP + rand(4, 5.6) * s, z + rand(-1.2, 1.2) * s);
   addCollider(x, z, 0.8 * s);
 }
 
@@ -311,39 +321,34 @@ const lightGlow = new Glow(400);  // bulb strings + windows, brighter at night
 const diyaGlow = new Glow(700);   // diyas on the steps, fade in at dusk
 
 function buildPromenade() {
-  // houses and the temple along the back
   const walls = [0xf2d7a7, 0xe9b77c, 0xd98e73, 0xf4e2c1, 0xcfa86e, 0xe4c49b];
   for (let x = -52; x <= 52; x += rand(7, 10)) {
     if (Math.abs(x) < 9) continue;
     const w = rand(5.5, 7.5), h = rand(5, 10), d = 7;
-    const hse = box(w, h, d, M(walls[(Math.random() * walls.length) | 0]));
+    const hse = box(w, h, d, M(pick(walls)));
     place(hse, x, TOP + h / 2, PROM_Z + 17 + rand(0, 3));
     for (let wy = 2; wy < h - 1; wy += 2.6) for (let wx = -w / 2 + 1.3; wx < w / 2 - 0.8; wx += 2.2) {
       if (Math.random() < 0.55) lightGlow.add(x + wx, TOP + wy, hse.position.z - d / 2 - 0.05, 0xffc06b, 0.7);
     }
   }
   // temple of Surya Dev
-  const base = box(10, 3.5, 8, M(0xf3e7d3)); place(base, 0, TOP + 1.75, PROM_Z + 18);
-  const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 4.2, 9, 8), M(0xf0c987)); place(sh, 0, TOP + 8, PROM_Z + 18.5);
-  const kalash = sph(0.6, mats.yellow, 10); place(kalash, 0, TOP + 13, PROM_Z + 18.5);
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.8), mats.cloth); place(flag, 0.8, TOP + 14, PROM_Z + 18.5);
-  const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0xffb020, toneMapped: false }));
-  place(sunDisc, 0, TOP + 2.2, PROM_Z + 13.95);
+  place(box(10, 3.5, 8, M(0xf3e7d3)), 0, TOP + 1.75, PROM_Z + 18);
+  place(new THREE.Mesh(new THREE.CylinderGeometry(0.6, 4.2, 9, 8), M(0xf0c987)), 0, TOP + 8, PROM_Z + 18.5);
+  place(sph(0.6, mats.yellow, 10), 0, TOP + 13, PROM_Z + 18.5);
+  place(new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.8), mats.cloth), 0.8, TOP + 14, PROM_Z + 18.5);
+  place(new THREE.Mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0xffb020, toneMapped: false })), 0, TOP + 2.2, PROM_Z + 13.95);
   lightGlow.add(-1.8, TOP + 1.2, PROM_Z + 13.8, 0xffb04a, 1.4);
   lightGlow.add(1.8, TOP + 1.2, PROM_Z + 13.8, 0xffb04a, 1.4);
   addCollider(0, PROM_Z + 18, 6);
 
-  for (const [x, z] of [[-34, 26], [-16, 27], [16, 27], [36, 26], [-46, 22], [46, 22]]) makeTree(x, z, rand(0.9, 1.2));
+  for (const [x, z] of [[-34, 26], [-16, 27], [16, 27], [-46, 22], [48, 23]]) makeTree(x, z, rand(0.9, 1.2));
 
   // welcome arch
   for (const sx of [-4.5, 4.5]) { place(cyl(0.18, 0.2, 5.2, mats.bamboo, 6), sx, TOP + 2.6, PROM_Z + 1.2); addCollider(sx, PROM_Z + 1.2, 0.3); }
-  const banner = sign([{ text: 'छठ घाट', size: 64 }, { text: 'Jai Chhathi Maiya', size: 34, font: '600 34px "Mukta", sans-serif' }], 0, TOP + 4.6, PROM_Z + 1.2, 8, 1.6, { bg: '#b91c1c' });
-  banner.userData.rebuild = () => { banner.material.map = signTexture([{ text: 'छठ घाट', size: 64 }, { text: 'Jai Chhathi Maiya', size: 34, font: '600 34px "Mukta", sans-serif' }], '#b91c1c'); };
-  signs.push(banner);
-  // marigold garland on the arch
+  sign([{ text: 'छठ घाट', size: 64 }, { text: 'Jai Chhathi Maiya', size: 34, font: '600 34px "Mukta", sans-serif' }], 0, TOP + 4.6, PROM_Z + 1.2, 8, 1.6, '#b91c1c');
   for (let i = 0; i <= 24; i++) {
-    const t = i / 24, x = lerp(-4.4, 4.4, t), y = TOP + 3.75 - Math.sin(Math.PI * t) * 0.5;
-    place(sph(0.1, i % 2 ? mats.orange : mats.yellow, 6), x, y, PROM_Z + 1.1);
+    const t = i / 24;
+    place(sph(0.1, i % 2 ? mats.orange : mats.yellow, 6), lerp(-4.4, 4.4, t), TOP + 3.75 - Math.sin(Math.PI * t) * 0.5, PROM_Z + 1.1);
   }
 
   // bamboo poles with bulb strings along the edge of the promenade
@@ -356,6 +361,38 @@ function buildPromenade() {
       lightGlow.add(lerp(poles[p], poles[p + 1], t), TOP + 4 - Math.sin(Math.PI * t) * 0.9, PROM_Z + 0.4, bulbCols[i % bulbCols.length], 0.32);
     }
   }
+}
+
+// --- aangan with chulha, and the mango-wood pile -----------------------------
+const fireGlow = new Glow(4);
+let pot;
+function buildAangan() {
+  const { x, z } = CHULHA, y = TOP;
+  place(box(6, 0.12, 5, mats.plaster), x, y + 0.06, z);
+  // low mud wall on three sides
+  place(box(6, 0.7, 0.25, mats.plaster), x, y + 0.35, z + 2.5);
+  place(box(0.25, 0.7, 5, mats.plaster), x + 3, y + 0.35, z);
+  // chulha: clay block with a dark mouth
+  place(box(1.0, 0.5, 0.8, mats.clay), x, y + 0.37, z);
+  place(box(0.45, 0.28, 0.05, mats.soot), x, y + 0.3, z - 0.41);
+  pot = sph(0.32, mats.brass, 14); pot.scale.y = 0.75; place(pot, x, y + 0.82, z);
+  place(cyl(0.3, 0.3, 0.06, mats.brass, 14), x, y + 1.0, z);
+  fireGlow.add(x, y + 0.32, z - 0.45, 0xff6a1a, 0.9);
+  fireGlow.add(x - 0.12, y + 0.4, z - 0.42, 0xffa040, 0.6);
+  fireGlow.uniforms.intensity.value = 0.6;
+  // a few things around: a grinding stone, a brass lota, a jute mat
+  place(box(1.6, 0.03, 1.0, M(0xb08a4a)), x - 1.8, y + 0.14, z + 0.6);
+  place(cyl(0.12, 0.09, 0.22, mats.brass, 10), x + 0.9, y + 0.23, z + 0.3);
+  sign([{ text: 'आँगन', size: 64 }, { text: 'Aangan · Chulha', size: 30, font: '600 30px "Mukta", sans-serif', gap: 64 }], x, y + 1.9, z + 2.55, 2.6, 0.8, '#7c2d12');
+  addCollider(x, z, 0.8);
+  // mango wood
+  for (let i = 0; i < 9; i++) {
+    const l = cyl(0.09, 0.11, 1.6, mats.log, 7);
+    l.rotation.z = Math.PI / 2; l.rotation.y = rand(-0.3, 0.3);
+    place(l, WOOD.x + rand(-0.3, 0.3), TOP + 0.12 + (i % 3) * 0.17, WOOD.z + (i / 3 | 0) * 0.2 - 0.2);
+  }
+  sign([{ text: 'आम की लकड़ी', size: 46 }, { text: 'Mango wood', size: 30, font: '600 30px "Mukta", sans-serif', gap: 56 }], WOOD.x, TOP + 1.3, WOOD.z - 0.6, 1.8, 0.56, '#3f6212');
+  addCollider(WOOD.x, WOOD.z, 0.7);
 }
 
 // --- people ---------------------------------------------------------------
@@ -373,9 +410,8 @@ function makeSoop(withFruit = true) {
   }
   return g;
 }
-function makePerson({ x, z, saree = true, color, holding = false, faceSun = true }) {
+function buildBody(saree, col) {
   const g = new THREE.Group();
-  const col = color ?? SAREES[(Math.random() * SAREES.length) | 0];
   const clothMat = M(col);
   if (saree) {
     const skirt = cyl(0.17, 0.34, 1.0, clothMat, 12); skirt.position.y = 0.5; g.add(skirt);
@@ -383,34 +419,41 @@ function makePerson({ x, z, saree = true, color, holding = false, faceSun = true
     const pallu = box(0.08, 0.7, 0.32, M(0xc92a2a)); pallu.position.set(0.14, 1.15, 0); pallu.rotation.z = -0.25; g.add(pallu);
   } else {
     const dhoti = cyl(0.17, 0.22, 0.9, mats.white, 10); dhoti.position.y = 0.45; g.add(dhoti);
-    const kurta = cyl(0.17, 0.2, 0.62, M(col), 10); kurta.position.y = 1.2; g.add(kurta);
+    const kurta = cyl(0.17, 0.2, 0.62, clothMat, 10); kurta.position.y = 1.2; g.add(kurta);
   }
   const head = sph(0.13, mats.skin, 12); head.position.y = 1.65; g.add(head);
   const hair = sph(0.135, mats.hair, 12); hair.scale.set(1, 0.7, 1); hair.position.set(0, 1.7, 0.03); g.add(hair);
   if (saree) { const sin = box(0.02, 0.02, 0.08, mats.red); sin.position.set(0, 1.78, -0.1); g.add(sin); }
+  return g;
+}
+const F_NAMES = ['Chachi', 'Dadi', 'Bua', 'Mausi', 'Didi', 'Bhabhi', 'Nani', 'Kaki'];
+const M_NAMES = ['Chacha', 'Dada', 'Bhaiya', 'Mama', 'Fufa', 'Nana', 'Kaka', 'Babu'];
+function makePerson({ x, z, saree = true, color, holding = false, faceSun = true, talk = false }) {
+  const col = color ?? pick(SAREES);
+  const g = buildBody(saree, col);
   let soop = null;
   if (holding) { soop = makeSoop(); soop.position.set(0, 1.35, -0.32); soop.rotation.x = -0.25; g.add(soop); }
   g.position.set(x, groundY(z), z);
   g.rotation.y = faceSun ? rand(-0.25, 0.25) : Math.PI + rand(-0.6, 0.6);
   scene.add(g);
-  people.push({ g, soop, base: g.position.y, phase: Math.random() * 6.28 });
+  const p = { g, soop, base: g.position.y, phase: Math.random() * 6.28, talk, name: pick(saree ? F_NAMES : M_NAMES), x, z, gotPrasad: false, turn: null };
+  people.push(p);
   addCollider(x, z, 0.45);
-  return g;
+  return p;
 }
 function buildPeople() {
-  // vratins standing in the water
   const inWater = [-30, -24, -19, -13, -8, 6, 11, 15, 21, 27, 33];
   for (const x of inWater) makePerson({ x: x + rand(-1, 1), z: rand(-2.2, -1.2), holding: true, saree: Math.random() > 0.15 });
-  // families on the steps
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 24; i++) {
     let x = rand(-44, 44); if (Math.abs(x) < 3) x += 6;
-    const z = rand(0.4, PROM_Z - 1);
-    makePerson({ x, z, saree: Math.random() > 0.45, faceSun: Math.random() > 0.3 });
+    const z = rand(0.6, PROM_Z - 1);
+    if (Math.abs(x - RING.x) < 2.5 && z < 2) continue;
+    makePerson({ x, z, saree: Math.random() > 0.45, faceSun: Math.random() > 0.3, talk: true });
   }
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 14; i++) {
     const x = rand(-44, 44), z = rand(PROM_Z + 3, PROM_Z + 9);
-    if (Math.abs(x - 24) < 4 || Math.abs(x + 24) < 4 || Math.abs(x + 10) < 4 || Math.abs(x) < 5) continue;
-    makePerson({ x, z, saree: Math.random() > 0.5, faceSun: Math.random() > 0.5 });
+    if ([SABZI, FRUIT, SOOP, CHULHA, WOOD].some((s) => Math.abs(x - s.x) < 4.5) || Math.abs(x) < 5) continue;
+    makePerson({ x, z, saree: Math.random() > 0.5, faceSun: Math.random() > 0.5, talk: true });
   }
 }
 
@@ -453,7 +496,7 @@ function makeKosi(x, z) {
   }
   const tie = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.04, 6, 12), mats.red); tie.position.y = 2.4; tie.rotation.x = Math.PI / 2; g.add(tie);
   const cloth = new THREE.Mesh(new THREE.ConeGeometry(0.62, 1.2, 5, 1, true), mats.clothY); cloth.position.y = 1.85; g.add(cloth);
-  const pot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mats.clay); pot.scale.y = 0.85; pot.position.y = 0.18; g.add(pot);
+  const kpot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mats.clay); kpot.scale.y = 0.85; kpot.position.y = 0.18; g.add(kpot);
   const glow = new Glow(12);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
@@ -467,21 +510,16 @@ function makeKosi(x, z) {
   g.position.set(x, y, z);
   scene.add(g);
   addCollider(x, z, 0.9);
-  const k = { x, z, glow, lit: false, level: 0 };
-  kosis.push(k);
-  return k;
+  kosis.push({ x, z, glow, lit: false, level: 0 });
 }
 
 // --- stalls ----------------------------------------------------------------
-const signs = [];
-function makeStall(x, z, title, sub, color, goods) {
+function makeStall({ x, z }, title, sub, color, goods) {
   const y = TOP;
-  const table = box(3.6, 0.9, 1.3, mats.wood); place(table, x, y + 0.45, z);
+  place(box(3.6, 0.9, 1.3, mats.wood), x, y + 0.45, z);
   for (const sx of [-1.8, 1.8]) for (const sz of [-0.7, 1.1]) place(cyl(0.06, 0.06, 2.6, mats.bamboo, 6), x + sx, y + 1.3, z + sz);
   const roof = box(4.2, 0.08, 2.4, M(color, { side: THREE.DoubleSide })); roof.rotation.x = -0.18; place(roof, x, y + 2.7, z + 0.2);
-  const s = sign([{ text: title, size: 58 }, { text: sub, size: 30, font: '600 30px "Mukta", sans-serif', gap: 64 }], x, y + 2.15, z - 0.75, 3.2, 0.9, { bg: '#7c2d12' });
-  s.userData.rebuild = () => { s.material.map = signTexture([{ text: title, size: 58 }, { text: sub, size: 30, font: '600 30px "Mukta", sans-serif', gap: 64 }], '#7c2d12'); };
-  signs.push(s);
+  sign([{ text: title, size: 58 }, { text: sub, size: 30, font: '600 30px "Mukta", sans-serif', gap: 64 }], x, y + 2.15, z - 0.75, 3.2, 0.9);
   goods(x, y + 0.9, z);
   lightGlow.add(x - 1.6, y + 2.45, z - 0.6, 0xffe08a, 0.9);
   lightGlow.add(x + 1.6, y + 2.45, z - 0.6, 0xffe08a, 0.9);
@@ -489,31 +527,33 @@ function makeStall(x, z, title, sub, color, goods) {
 }
 
 function buildStalls() {
-  makeStall(24, PROM_Z + 5, 'ठेकुआ', 'Thekua & Prasad', 0xe8590c, (x, y, z) => {
-    const disc = new THREE.CylinderGeometry(0.11, 0.11, 0.035, 10);
-    const tray = new THREE.InstancedMesh(disc, mats.thekua, 60); const m4 = new THREE.Matrix4(); let n = 0;
-    for (const ox of [-1.1, 0, 1.1]) {
-      place(cyl(0.48, 0.48, 0.04, mats.bamboo, 16), x + ox, y + 0.02, z);
-      for (let i = 0; i < 18; i++) { const a = rand(0, 6.28), r = rand(0, 0.36); m4.makeTranslation(x + ox + Math.cos(a) * r, y + 0.06 + (i > 12 ? 0.035 : 0), z + Math.sin(a) * r); tray.setMatrixAt(n++, m4); }
-    }
-    tray.count = n; scene.add(tray);
+  makeStall(SABZI, 'सब्ज़ी · अनाज', 'Sabzi & Anaj', 0xe8590c, (x, y, z) => {
+    for (let i = 0; i < 6; i++) { const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 4, 8), mats.lauki); l.rotation.z = Math.PI / 2; l.rotation.y = rand(-0.4, 0.4); place(l, x - 1.1 + rand(-0.3, 0.3), y + 0.09 + (i > 3 ? 0.15 : 0), z + rand(-0.35, 0.35)); }
+    for (const [ox, m] of [[0.2, mats.sack], [0.9, M(0x7a4a1c)], [1.5, mats.white]]) { const s = cyl(0.26, 0.3, 0.5, m, 10); place(s, x + ox, y + 0.25, z); }
   });
-  makeStall(-24, PROM_Z + 5, 'फल · गन्ना', 'Fruit & Sugarcane', 0x2b8a3e, (x, y, z) => {
+  makeStall(FRUIT, 'फल · गन्ना', 'Fruit & Sugarcane', 0x2b8a3e, (x, y, z) => {
     for (let i = 0; i < 14; i++) place(sph(0.11, [mats.orange, mats.lime, mats.banana, mats.coconut][i % 4], 8), x + rand(-1.4, 1.4), y + 0.11, z + rand(-0.4, 0.4));
     for (let i = 0; i < 9; i++) { const c = cyl(0.04, 0.05, 3, mats.cane, 6); c.rotation.z = rand(-0.25, 0.25); place(c, x + 2.1 + rand(-0.2, 0.3), y + 0.6, z + rand(-0.5, 0.5)); }
   });
-  makeStall(-10, PROM_Z + 5, 'सूप · दउरा', 'Soop & Daura', 0xb45309, (x, y, z) => {
+  makeStall(SOOP, 'सूप · दउरा', 'Soop & Daura', 0xb45309, (x, y, z) => {
     for (let i = 0; i < 4; i++) { const s = makeSoop(false); s.rotation.x = -0.9; s.position.set(x - 1.2 + i * 0.8, y + 0.3, z + 0.2); scene.add(s); }
     for (const ox of [-0.8, 0.8]) place(cyl(0.34, 0.24, 0.3, mats.bamboo, 12), x + ox, y + 0.15, z - 0.3);
   });
 }
 
-// --- arghya ring -------------------------------------------------------------
-const ARGHYA = { x: 0, z: -1.6 };
+// --- arghya ring + quest marker ----------------------------------------------
 const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.15, 48).rotateX(-Math.PI / 2), mats.ring);
-ring.position.set(ARGHYA.x, 0.03, ARGHYA.z);
+ring.position.set(RING.x, 0.03, RING.z);
 scene.add(ring);
-const ringGlow = new Glow(1); ringGlow.add(ARGHYA.x, 0.3, ARGHYA.z, 0xffb347, 2.4);
+const ringGlow = new Glow(1); ringGlow.add(RING.x, 0.3, RING.z, 0xffb347, 2.4);
+
+const marker = new THREE.Group();
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 14, 12, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xffc04d, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+beam.position.y = 7; marker.add(beam);
+const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), new THREE.MeshBasicMaterial({ color: 0xffc04d, toneMapped: false }));
+gem.scale.y = 1.5; marker.add(gem);
+scene.add(marker);
 
 // ---------------------------------------------------------------------------
 // Floating diyas on the river
@@ -529,30 +569,38 @@ function launchDiya(x, z, mine = false) {
   floaters.push({ mesh, x, z, vx: rand(0.35, 0.55), vz: rand(-0.35, -0.18), ph: Math.random() * 6.28, mine });
 }
 function updateFloaters(dt, t) {
-  const pos = floatGlow.geo.attributes.position, size = floatGlow.geo.attributes.size;
+  const pos = floatGlow.geo.attributes.position, size = floatGlow.geo.attributes.size, col = floatGlow.geo.attributes.color;
   for (let i = floaters.length - 1; i >= 0; i--) {
     const f = floaters[i];
-    f.x += f.vx * dt; f.z += f.vz * dt; f.vz *= 0.9995;
+    f.x += f.vx * dt; f.z += f.vz * dt;
     if (f.z < -60 || f.x > 120) { scene.remove(f.mesh); floaters.splice(i, 1); continue; }
-    const bob = Math.sin(t * 1.6 + f.ph) * 0.03;
-    f.mesh.position.set(f.x, bob, f.z);
+    f.mesh.position.set(f.x, Math.sin(t * 1.6 + f.ph) * 0.03, f.z);
   }
-  floaters.forEach((f, i) => { pos.setXYZ(i, f.x, f.mesh.position.y + 0.14, f.z); size.setX(i, f.mine ? 0.75 : 0.55); });
-  for (let i = 0; i < floaters.length; i++) floatGlow.geo.attributes.color.setXYZ(i, 1, 0.6, 0.18);
+  floaters.forEach((f, i) => { pos.setXYZ(i, f.x, f.mesh.position.y + 0.14, f.z); size.setX(i, f.mine ? 0.75 : 0.55); col.setXYZ(i, 1, 0.6, 0.18); });
   floatGlow.n = floaters.length;
   floatGlow.geo.setDrawRange(0, floaters.length);
-  pos.needsUpdate = size.needsUpdate = floatGlow.geo.attributes.color.needsUpdate = true;
+  pos.needsUpdate = size.needsUpdate = col.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------------
-// Particles: arghya stream + marigold petals
+// Particles: arghya stream / splash, marigold petals
 // ---------------------------------------------------------------------------
 const pourGeo = new THREE.BufferGeometry();
 const POUR_N = 260;
 pourGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(POUR_N * 3), 3));
 const pour = new THREE.Points(pourGeo, new THREE.PointsMaterial({ color: 0xfff1d6, size: 0.06, transparent: true, opacity: 0.9, depthWrite: false }));
-pour.visible = false; pour.frustumCulled = false; scene.add(pour);
+pour.frustumCulled = false; scene.add(pour);
 const pourP = Array.from({ length: POUR_N }, () => ({ x: 0, y: -10, z: 0, vx: 0, vy: 0, vz: 0, life: 0 }));
+let pourUntil = 0;
+function splash(x, z, n = 80) {
+  let k = 0;
+  for (const p of pourP) {
+    if (p.life > 0) continue;
+    const a = rand(0, 6.28), s = rand(0.5, 1.6);
+    Object.assign(p, { x, y: 0.05, z, vx: Math.cos(a) * s, vy: rand(1.5, 3.2), vz: Math.sin(a) * s, life: 1.2 });
+    if (++k >= n) break;
+  }
+}
 
 const PET_N = 500;
 const petGeo = new THREE.BufferGeometry();
@@ -570,19 +618,30 @@ function startPetals() {
   petP.length = 0;
   const col = petGeo.attributes.color, c = new THREE.Color();
   for (let i = 0; i < PET_N; i++) {
-    petP.push({ x: player.x + rand(-14, 14), y: rand(4, 16), z: player.z + rand(-16, -2), s: rand(0.6, 1.4), ph: rand(0, 6.28) });
+    petP.push({ x: player.x + rand(-14, 14), y: rand(4, 16), z: player.z + rand(-16, 4), s: rand(0.6, 1.4), ph: rand(0, 6.28) });
     c.setHex([0xf59f00, 0xff8c00, 0xffd43b, 0xe8590c][i % 4]); col.setXYZ(i, c.r, c.g, c.b);
   }
   col.needsUpdate = true; petals.visible = true;
 }
 
 // ---------------------------------------------------------------------------
-// Player + input
+// Player (third person)
 // ---------------------------------------------------------------------------
-const player = { x: 0, z: 14, y: TOP + EYE, yaw: 0, pitch: -0.06, speed: 4.2 };
+const player = { x: 0, z: 14, y: TOP, yaw: 0, pitch: 0.28, speed: 4.4, gender: 'f', name: '', facing: 0, walk: 0, action: null };
+let avatar = null, avatarSoop = null;
+const g = (f, m) => (player.gender === 'f' ? f : m); // gendered Hindi
+function buildAvatar() {
+  if (avatar) scene.remove(avatar);
+  avatar = buildBody(player.gender === 'f', player.gender === 'f' ? 0xfab005 : 0xe8590c);
+  avatarSoop = makeSoop(); avatarSoop.position.set(0, 1.25, -0.34); avatarSoop.rotation.x = -0.2; avatarSoop.visible = false;
+  avatar.add(avatarSoop);
+  scene.add(avatar);
+}
+
 const keys = new Set();
 let started = false, uiOpen = false;
 addEventListener('keydown', (e) => {
+  if (cookState) { if (['e', ' ', 'enter'].includes(e.key.toLowerCase()) && !e.repeat) { e.preventDefault(); cookHit(); } return; }
   if (!started || uiOpen) return;
   const k = e.key.toLowerCase();
   if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) { keys.add(k); e.preventDefault(); }
@@ -596,8 +655,8 @@ let lookId = null, lx = 0, ly = 0;
 canvas.addEventListener('pointerdown', (e) => { if (!started) return; lookId = e.pointerId; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', (e) => {
   if (e.pointerId !== lookId) return;
-  const s = e.pointerType === 'touch' ? 0.006 : 0.0042;
-  player.yaw -= (e.clientX - lx) * s; player.pitch = clamp(player.pitch - (e.clientY - ly) * s, -1.1, 1.0);
+  const s = e.pointerType === 'touch' ? 0.007 : 0.0045;
+  player.yaw -= (e.clientX - lx) * s; player.pitch = clamp(player.pitch + (e.clientY - ly) * s, -0.15, 1.1);
   lx = e.clientX; ly = e.clientY;
 });
 const endLook = (e) => { if (e.pointerId === lookId) lookId = null; };
@@ -620,60 +679,247 @@ function moveJoy(e) {
 }
 $('#act').addEventListener('click', () => interact());
 
-const fwd = new THREE.Vector3(), right = new THREE.Vector3();
-function updatePlayer(dt) {
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), camTarget = new THREE.Vector3();
+function updatePlayer(dt, t) {
   let mx = 0, mz = 0;
-  if (keys.has('w') || keys.has('arrowup')) mz += 1;
-  if (keys.has('s') || keys.has('arrowdown')) mz -= 1;
-  if (keys.has('a')) mx -= 1;
-  if (keys.has('d')) mx += 1;
-  if (keys.has('arrowleft')) player.yaw += 1.8 * dt;
-  if (keys.has('arrowright')) player.yaw -= 1.8 * dt;
-  mx += joyV.x; mz -= joyV.y;
+  if (!player.action && !uiOpen) {
+    if (keys.has('w') || keys.has('arrowup')) mz += 1;
+    if (keys.has('s') || keys.has('arrowdown')) mz -= 1;
+    if (keys.has('a')) mx -= 1;
+    if (keys.has('d')) mx += 1;
+    if (keys.has('arrowleft')) player.yaw += 1.8 * dt;
+    if (keys.has('arrowright')) player.yaw -= 1.8 * dt;
+    mx += joyV.x; mz -= joyV.y;
+  }
   const len = Math.hypot(mx, mz);
   if (len > 1) { mx /= len; mz /= len; }
   const inWater = player.z < 0;
   const sp = player.speed * (keys.has('shift') ? 1.7 : 1) * (inWater ? 0.55 : 1);
   fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
   right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-  let nx = player.x + (fwd.x * mz + right.x * mx) * sp * dt;
-  let nz = player.z + (fwd.z * mz + right.z * mx) * sp * dt;
+  const dx = (fwd.x * mz + right.x * mx), dz = (fwd.z * mz + right.z * mx);
+  let nx = player.x + dx * sp * dt, nz = player.z + dz * sp * dt;
   nx = clamp(nx, -52, 52); nz = clamp(nz, -2.8, PROM_Z + 11);
   for (const c of colliders) {
-    const dx = nx - c.x, dz = nz - c.z, d = Math.hypot(dx, dz), min = c.r + 0.35;
-    if (d < min && d > 0.0001) { nx = c.x + (dx / d) * min; nz = c.z + (dz / d) * min; }
+    const ddx = nx - c.x, ddz = nz - c.z, d = Math.hypot(ddx, ddz), min = c.r + 0.35;
+    if (d < min && d > 0.0001) { nx = c.x + (ddx / d) * min; nz = c.z + (ddz / d) * min; }
   }
-  const moving = Math.hypot(nx - player.x, nz - player.z) > 0.001;
+  const moving = len > 0.05;
   player.x = nx; player.z = nz;
-  const targetY = groundY(player.z) + EYE;
-  player.y = lerp(player.y, targetY, 1 - Math.exp(-10 * dt));
-  const bob = moving && !reduceMotion ? Math.sin(performance.now() * 0.011) * 0.03 : 0;
-  camera.position.set(player.x, player.y + bob, player.z);
-  camera.rotation.set(0, 0, 0);
-  camera.rotation.order = 'YXZ';
-  camera.rotation.y = player.yaw; camera.rotation.x = player.pitch;
+  if (moving) player.facing += angleTo(player.facing, Math.atan2(-dx, -dz)) * (1 - Math.exp(-12 * dt));
+  player.walk = moving ? player.walk + dt * sp * 2.2 : 0;
+  player.y = lerp(player.y, groundY(player.z), 1 - Math.exp(-12 * dt));
+
+  // avatar pose
+  let dip = 0;
+  if (player.action?.type === 'dip') {
+    const a = player.action, k = (t - a.start) / a.dur;
+    dip = Math.max(0, Math.sin(k * Math.PI * 3)) * 0.9;
+  }
+  avatar.position.set(player.x, player.y - dip + (moving && !reduceMotion ? Math.abs(Math.sin(player.walk)) * 0.05 : 0), player.z);
+  avatar.rotation.set(0, player.facing, moving ? Math.sin(player.walk) * 0.05 : 0);
+  avatarSoop.visible = !!player.action && player.action.type === 'arghya';
+  if (avatarSoop.visible) avatarSoop.position.y = 1.25 + Math.min(1, (t - player.action.start) / 1.2) * 0.45;
+
+  // camera: orbit behind the avatar, kept above water and steps
+  const dist = 4.6;
+  camTarget.set(player.x, player.y + 1.45 - dip * 0.5, player.z);
+  const cx = camTarget.x - fwd.x * dist * Math.cos(player.pitch);
+  const cz = camTarget.z - fwd.z * dist * Math.cos(player.pitch);
+  let cy = camTarget.y + dist * Math.sin(player.pitch) + 0.2;
+  cy = Math.max(cy, groundY(cz) + 0.4, 0.35);
+  camera.position.lerp(new THREE.Vector3(cx, cy, cz), 1 - Math.exp(-14 * dt));
+  camera.lookAt(camTarget);
 }
 
 // ---------------------------------------------------------------------------
-// Story / phases
+// Days and tasks
 // ---------------------------------------------------------------------------
-// sandhya -> setting -> night -> (dawning) -> usha -> rising -> done
-let phase = 'sandhya';
-let anim = null; // { from:{elev,az}, to:{elev,az}, t, dur, done }
-function animateSky(elev, az, dur, done) { anim = { from: { ...sky }, to: { elev, az }, t: 0, dur, done }; }
+const DAYS = [
+  {
+    n: 1, title: 'Nahay Khay', date: 'Fri, 13 Nov 2026', sky: { elev: 16, az: 32 }, song: 'L-lzSCH50Cg', start: { x: 0, z: 8.6 },
+    desc: 'Chhath begins with purity. A holy dip in the river, then one simple sattvik meal: kaddu-bhaat, cooked with ghee and sendha namak.',
+    tasks: [
+      { id: 'snan', t: 'Take a holy dip in the river' },
+      { id: 'lauki', t: 'Buy lauki (kaddu) at the Sabzi stall' },
+      { id: 'kaddu', t: 'Cook kaddu-bhaat at the chulha', needs: ['lauki'] },
+    ],
+    done: 'Snan ho gaya, kaddu-bhaat ban gaya. The house smells of ghee and the festival has begun.',
+  },
+  {
+    n: 2, title: 'Kharna', date: 'Sat, 14 Nov 2026', sky: { elev: 5, az: -32 }, song: 'DG8F-csoRAQ', start: { x: 30, z: 16 },
+    desc: 'A full day of fasting, broken at dusk with rasiya: jaggery kheer cooked on mango wood. Share the prasad with neighbours, and the 36-hour nirjala vrat begins.',
+    tasks: [
+      { id: 'lakdi', t: 'Collect mango wood by the big tree' },
+      { id: 'gur', t: 'Get gur and chawal at the Anaj stall' },
+      { id: 'kheer', t: 'Cook rasiya-kheer on the chulha', needs: ['lakdi', 'gur'] },
+      { id: 'share', t: 'Share Kharna prasad with 3 neighbours', needs: ['kheer'], count: 3 },
+    ],
+    done: 'Kharna ka prasad sabko mila. From now till Usha Arghya, the vrat is nirjala: not even a sip of water.',
+  },
+  {
+    n: 3, title: 'Sandhya Arghya', date: 'Sun, 15 Nov 2026', sky: { elev: 9, az: -32 }, song: 'knZ8b5YnQiY', start: { x: 30, z: 16 },
+    desc: 'The big day. Fry thekua, pack the daura with fruit and sugarcane, carry it to the ghat and offer arghya to the setting sun. At night, light the kosi.',
+    tasks: [
+      { id: 'atta', t: 'Get atta and gur at the Anaj stall' },
+      { id: 'thekua', t: 'Fry thekua at the chulha', needs: ['atta'] },
+      { id: 'phal', t: 'Pick fruit and sugarcane' },
+      { id: 'soop', t: 'Buy a bamboo soop and daura' },
+      { id: 'sandhya', t: 'Offer Sandhya Arghya at the glowing ring', needs: ['thekua', 'phal', 'soop'] },
+      { id: 'kosi', t: 'Light a kosi on the steps', needs: ['sandhya'] },
+      { id: 'diya', t: 'Float a diya on the river', needs: ['sandhya'] },
+    ],
+    done: 'Kosi jal rahi hai, diye beh rahe hain. The ghat stays awake all night with songs. Bhor hone wali hai…',
+  },
+  {
+    n: 4, title: 'Usha Arghya', date: 'Mon, 16 Nov 2026', sky: { elev: -3, az: 32 }, song: 'j9G3caThH98', start: { x: 0, z: 5 },
+    desc: 'Before first light, back in the water. Offer arghya to the rising sun, then share prasad and break the fast: paran.',
+    tasks: [
+      { id: 'usha', t: 'Offer Usha Arghya to the rising sun' },
+      { id: 'paran', t: 'Paran: share prasad with someone', needs: ['usha'] },
+    ],
+  },
+];
+const state = { day: 0, done: new Set(), share: 0 };
+const curDay = () => DAYS[state.day];
+const isDone = (id) => state.done.has(id);
+const ready = (task) => (task.needs || []).every(isDone);
+function currentTask() { return curDay().tasks.find((t) => !isDone(t.id) && ready(t)) || null; }
 
-const PHASES = {
-  sandhya: ['Day 3 · Sun, 15 Nov 2026', 'Sandhya Arghya', 'Walk to the glowing ring in the water'],
-  night: ['Raat · Kosi bharai', 'The ghat stays awake', 'Light a kosi, float a diya, or wait for dawn'],
-  usha: ['Day 4 · Mon, 16 Nov 2026', 'Usha Arghya', 'Bhor ho gayi. Back to the ring for the dawn arghya'],
-  done: ['Paran', 'Vrat sampann', 'Wander the ghat as long as you like'],
-};
-function setPhaseUI(p) {
-  const [k, v, s] = PHASES[p];
-  $('#phK').textContent = k; $('#phV').textContent = v; $('#phS').textContent = s;
+function save() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ g: player.gender, name: player.name, day: state.day, done: [...state.done], share: state.share })); } catch { /* storage blocked */ }
+}
+function load() {
+  try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { return null; }
 }
 
-let toastTimer;
+function renderQuest() {
+  const d = curDay();
+  $('#qK').textContent = `Din ${d.n} · ${d.date}`;
+  $('#qV').textContent = d.title;
+  const cur = currentTask();
+  const ol = $('#qList'); ol.innerHTML = '';
+  for (const t of d.tasks) {
+    const li = document.createElement('li');
+    li.textContent = t.count ? `${t.t} (${Math.min(state.share, t.count)}/${t.count})` : t.t;
+    if (isDone(t.id)) li.className = 'done';
+    else if (t === cur) li.className = 'cur';
+    ol.append(li);
+  }
+}
+const quest = $('#quest');
+if (innerWidth < 600) { quest.classList.add('collapsed'); $('#qToggle').setAttribute('aria-expanded', 'false'); }
+$('#qToggle').addEventListener('click', () => {
+  const c = quest.classList.toggle('collapsed');
+  $('#qToggle').setAttribute('aria-expanded', String(!c));
+});
+
+function complete(id) {
+  if (isDone(id)) return false;
+  state.done.add(id);
+  sfx.bell();
+  renderQuest(); save();
+  if (curDay().tasks.every((t) => isDone(t.id))) setTimeout(dayComplete, 2600);
+  return true;
+}
+
+function nearestUnlitKosi() {
+  let best = null, bd = Infinity;
+  for (const k of kosis) { if (k.lit) continue; const d = Math.hypot(k.x - player.x, k.z - player.z); if (d < bd) { bd = d; best = k; } }
+  return best;
+}
+function nearestTalker(filter = () => true) {
+  let best = null, bd = Infinity;
+  for (const p of people) { if (!p.talk || !filter(p)) continue; const d = Math.hypot(p.x - player.x, p.z - player.z); if (d < bd) { bd = d; best = p; } }
+  return best;
+}
+function taskTarget(task) {
+  if (!task) return null;
+  switch (task.id) {
+    case 'snan': case 'sandhya': case 'usha': case 'diya': return RING;
+    case 'lauki': case 'gur': case 'atta': return SABZI;
+    case 'phal': return FRUIT;
+    case 'soop': return SOOP;
+    case 'kaddu': case 'kheer': case 'thekua': return CHULHA;
+    case 'lakdi': return WOOD;
+    case 'kosi': return nearestUnlitKosi();
+    case 'share': return nearestTalker((p) => !p.gotPrasad);
+    case 'paran': return nearestTalker();
+  }
+  return null;
+}
+
+// --- day flow ---------------------------------------------------------------
+let anim = null;
+function animateSky(elev, az, dur, done) { anim = { from: { ...sky }, to: { elev, az }, t: 0, dur: reduceMotion ? 0.3 : dur, done }; }
+
+function openModal(id) { $('#' + id).classList.add('on'); uiOpen = true; keys.clear(); setTimeout(() => $('#' + id + ' .btn')?.focus(), 60); }
+function closeModal(id) { $('#' + id).classList.remove('on'); uiOpen = document.querySelector('.modal.on, .drawer.on') !== null; }
+
+function startDay(i, { fresh = true } = {}) {
+  state.day = i;
+  if (fresh) { for (const t of DAYS[i].tasks) state.done.delete(t.id); if (i === 1) state.share = 0; }
+  const d = DAYS[i];
+  sky.elev = d.sky.elev; sky.az = d.sky.az; anim = null;
+  // the world remembers what happened on earlier days
+  const sandhyaDone = isDone('sandhya') || i === 3;
+  kosis.forEach((k, j) => { k.lit = i === 3 ? j % 2 === 0 : (i === 2 && isDone('kosi') && j === 0); });
+  if (i === 2 && sandhyaDone && isDone('sandhya')) { sky.elev = -14; }
+  people.forEach((p) => { p.gotPrasad = false; });
+  player.x = d.start.x; player.z = d.start.z; player.y = groundY(player.z); player.yaw = 0; player.facing = 0; player.pitch = 0.28;
+  petals.visible = false;
+  renderQuest(); save();
+  $('#dayEyebrow').textContent = `Din ${d.n} · ${d.date}`;
+  $('#dayTitle').textContent = d.title;
+  $('#dayDesc').textContent = d.desc;
+  const ul = $('#dayTasks'); ul.innerHTML = '';
+  d.tasks.forEach((t) => { const li = document.createElement('li'); li.textContent = t.t; ul.append(li); });
+  const s = SONGS.find((x) => x.id === d.song);
+  $('#daySong').textContent = `${s.title} · ${s.by}`;
+  $('#daySong').onclick = () => { playSong(s.id); };
+  openModal('dayCard');
+}
+$('#dayGo').addEventListener('click', () => {
+  closeModal('dayCard');
+  const d = curDay();
+  const hi = player.name ? `, ${player.name}` : '';
+  setTimeout(() => toast(`Din ${d.n}: ${d.title}`, `Follow the golden light${hi}. Your tasks are at the top left.`), 300);
+});
+
+function dayComplete() {
+  const d = curDay();
+  if (d.n === 4) return finale();
+  $('#doneEyebrow').textContent = `Din ${d.n} sampann`;
+  $('#doneTitle').textContent = pick(['Shabaash!', 'Bahut badhiya!', 'Jai Chhathi Maiya!']);
+  $('#doneDesc').textContent = d.done;
+  $('#nextDay').textContent = `Din ${d.n + 1}: ${DAYS[d.n].title} →`;
+  openModal('doneCard');
+}
+$('#nextDay').addEventListener('click', () => { closeModal('doneCard'); startDay(state.day + 1); });
+
+function finale() {
+  startPetals();
+  $('#finText').textContent = `Four days, two arghyas, and a lot of thekua. ${player.name ? player.name + ', your' : 'Your'} vrat is complete. Ghar se door ho, par Chhathi Maiya ka aashirwad saath hai. Chhath Mahaparv ki hardik shubhkamnayein!`;
+  setTimeout(() => openModal('finale'), 1800);
+}
+$('#stayBtn').addEventListener('click', () => closeModal('finale'));
+$('#shareBtn').addEventListener('click', async () => {
+  const data = { title: 'Chhath Ghat Online', text: 'Ghar nahi ja paaye? Chhath ke chaaron din yahan manao, online ghat pe.', url: location.href };
+  try {
+    if (navigator.share) await navigator.share(data);
+    else { await navigator.clipboard.writeText(location.href); $('#shareBtn').textContent = 'Link copied'; }
+  } catch { /* share sheet dismissed */ }
+});
+document.querySelectorAll('[data-wish]').forEach((b) => b.addEventListener('click', () => {
+  const who = player.name ? `– ${player.name}` : '';
+  const msg = `Chhath Mahaparv ki hardik shubhkamnayein! 🌅🙏\nIs baar ghar nahi aa ${g('payi', 'paya')}, par online ghat pe arghya diya aur aap sabko yaad kiya. Chhathi Maiya sabki manokamna puri karein. ${who}\n${location.href}`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+}));
+
+// ---------------------------------------------------------------------------
+// Toasts and speech
+// ---------------------------------------------------------------------------
+let toastTimer, sayTimer;
 function toast(main, sub = '', ms = 4200) {
   const el = $('#toast');
   el.innerHTML = '';
@@ -683,75 +929,246 @@ function toast(main, sub = '', ms = 4200) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('on'), ms);
 }
+function say(who, text, ms = 5200) {
+  $('#sayWho').textContent = who; $('#sayText').textContent = text;
+  $('#say').classList.add('on');
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => $('#say').classList.remove('on'), ms);
+}
+
+const LINES = () => {
+  const n = player.name || g('beti', 'beta');
+  return [
+    `Kahan se aaye ho, ${n}? Bangalore? Arre, ghar nahi ja paaye to kya, ghat to yahin hai!`,
+    `Maa ko video call karna arghya ke time. Woh bahut khush hongi.`,
+    `Is baar train ki ticket nahi mili… waiting 187! Isliye hum bhi online ghat aa gaye.`,
+    `Thekua ka secret? Atta, gur, ghee… aur dher saara pyaar.`,
+    `Sharda Sinha ji ka geet bajao, tab lagta hai Chhath aa gaya. Upar geet wala button dabao!`,
+    `Chhathi Maiya sabki manokamna puri karein. Jai ho!`,
+    `Seedhiyon pe dhyan se, ${n}. Bahut phislan hai.`,
+    `Pichhli baar Patna mein itni bheed thi ki ghat tak pahunchne mein ek ghanta laga.`,
+    `Prasad mein ganna zaroor rakhna. Bachche sabse pehle wahi uthate hain!`,
+    `Daura sar pe uthake ghat tak le jaana, isse bada punya kuch nahi.`,
+    `Kosi bharai dekhi hai kabhi raat mein? Itne diye, jaise taare zameen pe utar aaye.`,
+    `${g('Tum', 'Tum')} jahan bhi ho, Chhath ka suraj wahi hai. Arghya dil se dena.`,
+    `Ghar ki yaad aa rahi hai? Chalo, ek thekua kha lo, thoda accha lagega.`,
+  ];
+};
+function talkTo(p) {
+  p.turn = Math.atan2(player.x - p.x, player.z - p.z) + Math.PI;
+  say(p.name, pick(LINES()));
+  sfx.chime();
+}
 
 // ---------------------------------------------------------------------------
-// Basket (souvenirs)
+// Cooking mini-game
 // ---------------------------------------------------------------------------
-const ITEMS = [
-  { id: 'sandhya', e: '🌇', n: 'Sandhya Arghya', d: 'Offered to the setting sun' },
-  { id: 'usha', e: '🌄', n: 'Usha Arghya', d: 'Offered to the rising sun' },
-  { id: 'diya', e: '🪔', n: 'Floating diya', d: 'Set a diya afloat on the river' },
-  { id: 'kosi', e: '✨', n: 'Kosi bharai', d: 'Lit the diyas under a sugarcane canopy' },
-  { id: 'thekua', e: '🍪', n: 'Thekua', d: 'Prasad from the thekua stall' },
-  { id: 'ganna', e: '🎋', n: 'Ganna & phal', d: 'Sugarcane and fruit for the daura' },
-  { id: 'soop', e: '🧺', n: 'Soop', d: 'A bamboo soop from the craft stall' },
-];
-const got = new Set();
-function renderBasket() {
-  const grid = $('#basketGrid'); grid.innerHTML = '';
-  for (const it of ITEMS) {
-    const d = document.createElement('div'); d.className = 'item' + (got.has(it.id) ? ' got' : '');
-    d.innerHTML = `<span class="e" aria-hidden="true">${it.e}</span><div><b></b><small></small></div>`;
-    d.querySelector('b').textContent = it.n; d.querySelector('small').textContent = got.has(it.id) ? it.d : 'Not yet collected';
-    grid.append(d);
-  }
-  $('#basketSum').textContent = `${got.size} of ${ITEMS.length} blessings collected`;
-  $('#basketBar').style.width = `${(got.size / ITEMS.length) * 100}%`;
-  $('#badge').textContent = got.size;
+const RECIPES = {
+  kaddu: { title: 'Kaddu-bhaat', steps: ['Chawal dhoye ✓', 'Lauki aur chana dal daali ✓', 'Ghee aur sendha namak, ban gaya! ✓'], msg: ['Kaddu-bhaat taiyaar 🍚', 'Simple, sattvik, and full of ghee.'] },
+  kheer: { title: 'Rasiya-kheer', steps: ['Aam ki lakdi jalayi ✓', 'Doodh mein chawal pakaye ✓', 'Gur milaya, rasiya taiyaar! ✓'], msg: ['Rasiya-kheer ban gayi 🍮', 'Now share the Kharna prasad with 3 neighbours.'] },
+  thekua: { title: 'Thekua', steps: ['Atta, gur aur ghee goondha ✓', 'Saanche pe sundar chhaap ✓', 'Ghee mein sunahra tala! ✓'], msg: ['Thekua taiyaar! 🍪', 'Crisp outside, soft inside. Just like home.'] },
+};
+let cookState = null;
+const MISS = ['Thoda jal gaya! Phir se 😅', 'Arre, kachcha reh gaya! Ek baar aur', 'Dhyan se! Golden zone pe rokna hai'];
+function cook(id) {
+  const r = RECIPES[id];
+  cookState = { id, hits: 0, t: 0, speed: 1.6, zone: 0, w: 22, raf: 0, last: performance.now() };
+  $('#cookTitle').textContent = r.title;
+  $('#cookStep').textContent = 'Stop the needle in the golden zone, 3 times';
+  $('#cookHint').textContent = isTouch ? 'Tap "Abhi!" when the needle is in the gold' : 'Press E or Space when the needle is in the gold';
+  [...$('#cookDots').children].forEach((d) => d.classList.remove('on'));
+  newZone();
+  openModal('cook');
+  fireGlow.uniforms.intensity.value = 1.6;
+  const loop = (now) => {
+    if (!cookState) return;
+    const dt = (now - cookState.last) / 1000; cookState.last = now;
+    cookState.t += dt * cookState.speed;
+    cookState.pos = (Math.sin(cookState.t * 2.2) + 1) / 2 * 100;
+    $('#cookNeedle').style.left = cookState.pos + '%';
+    cookState.raf = requestAnimationFrame(loop);
+  };
+  cookState.raf = requestAnimationFrame(loop);
 }
-function collect(id) {
-  if (got.has(id)) return false;
-  got.add(id); renderBasket(); sfx.bell();
-  return true;
+function newZone() {
+  cookState.zone = rand(8, 92 - cookState.w);
+  $('#cookZone').style.left = cookState.zone + '%';
+  $('#cookZone').style.width = cookState.w + '%';
+}
+function cookHit() {
+  const c = cookState; if (!c) return;
+  const r = RECIPES[c.id];
+  if (c.pos >= c.zone - 1.5 && c.pos <= c.zone + c.w + 1.5) {
+    $('#cookDots').children[c.hits].classList.add('on');
+    $('#cookStep').textContent = r.steps[c.hits];
+    c.hits++; sfx.chime();
+    if (c.hits >= 3) {
+      cancelAnimationFrame(c.raf); cookState = null;
+      setTimeout(() => {
+        closeModal('cook'); fireGlow.uniforms.intensity.value = 0.6;
+        complete(c.id); toast(...r.msg);
+        if (c.id === 'kheer') animateSky(-10, -32, 8); // dusk falls over Kharna
+      }, 900);
+      return;
+    }
+    c.speed += 0.45; c.w = Math.max(11, c.w - 4); newZone();
+  } else {
+    $('#cookStep').textContent = pick(MISS);
+    const bar = $('#cookBar'); bar.classList.remove('miss'); void bar.offsetWidth; bar.classList.add('miss');
+  }
+}
+$('#cookBtn').addEventListener('click', cookHit);
+
+// ---------------------------------------------------------------------------
+// Rituals
+// ---------------------------------------------------------------------------
+function faceSun() {
+  const s = sunVector(Math.max(sky.elev, 0), sky.az);
+  const target = Math.atan2(-s.x, -s.z);
+  player.facing = target;
+  player.turnCam = { from: player.yaw, to: target, t: 0 };
+}
+function dip() {
+  player.action = { type: 'dip', start: clock.elapsedTime, dur: 3.2 };
+  faceSun();
+  const counts = ['Ek!', 'Do!', 'Teen!'];
+  counts.forEach((c, i) => setTimeout(() => { toast(c, '', 900); splash(player.x, player.z, 60); sfx.splash(); }, 400 + i * 1060));
+  setTimeout(() => {
+    player.action = null;
+    complete('snan');
+    toast('Ganga snan sampann 💧', `${g('Pavitra ho gayi', 'Pavitra ho gaye')}. Now for the kaddu-bhaat.`);
+  }, 3400);
+}
+function offerArghya(kind) {
+  sfx.shankh();
+  faceSun();
+  player.action = { type: 'arghya', start: clock.elapsedTime };
+  pourUntil = performance.now() + 3200;
+  if (kind === 'sandhya') {
+    toast('Sandhya Arghya arpit 🌇', 'Thanks to Surya Dev for the day that was.', 5000);
+    setTimeout(() => {
+      player.action = null;
+      animateSky(-14, -32, 12, () => {
+        complete('sandhya');
+        toast('Raat ho gayi 🌙', 'Kosi bharai time. Light a kosi and float a diya.');
+      });
+    }, 2600);
+  } else {
+    toast('Usha Arghya arpit 🌄', 'Ugi he Suruj Dev! The vrat is nearly complete.', 5000);
+    setTimeout(() => {
+      player.action = null;
+      animateSky(6, 32, 9, () => {
+        complete('usha');
+        toast('Ab paran karo 🙏', 'Share prasad with someone on the ghat to break the fast.');
+      });
+    }, 2200);
+  }
+}
+let lastFloat = 0;
+function floatMine() {
+  const now = performance.now();
+  if (now - lastFloat < 700) return; lastFloat = now;
+  launchDiya(player.x - Math.sin(player.facing) * 1.0, Math.min(player.z - 1.0, -0.6), true);
+  sfx.chime();
+  if (state.day === 2 && complete('diya')) toast('Diya pravahit 🪔', 'Your diya joins the river of lights.');
 }
 
 // ---------------------------------------------------------------------------
 // Interactables
 // ---------------------------------------------------------------------------
 const interactables = [];
-function interactable(x, z, r, label, action) { interactables.push({ x, z, r, label, action }); }
+function interactable(pos, r, label, action) { interactables.push({ pos, r, label, action }); }
+const dayN = () => curDay().n;
+const busy = () => !!anim || !!player.action;
 
 function setupInteractions() {
-  interactable(ARGHYA.x, ARGHYA.z, 2.2, () => {
-    if (anim) return '';
-    if (phase === 'sandhya') return 'Offer Sandhya Arghya to the setting sun';
-    if (phase === 'night') return 'Keep jaagran till dawn';
-    if (phase === 'usha') return 'Offer Usha Arghya to the rising sun';
-    return 'Float a diya';
+  interactable(RING, 2.2, () => {
+    if (busy()) return '';
+    const n = dayN();
+    if (n === 1) return isDone('snan') ? '' : 'Take a holy dip (snan)';
+    if (n === 3) {
+      if (!isDone('sandhya')) return ready(DAYS[2].tasks[4]) ? 'Offer Sandhya Arghya' : 'Daura not ready yet';
+      return 'Float a diya';
+    }
+    if (n === 4) return isDone('usha') ? 'Float a diya' : 'Offer Usha Arghya';
+    return '';
   }, () => {
-    if (anim) return;
-    if (phase === 'sandhya') offerArghya('sandhya');
-    else if (phase === 'night') goToDawn();
-    else if (phase === 'usha') offerArghya('usha');
+    if (busy()) return;
+    const n = dayN();
+    if (n === 1 && !isDone('snan')) dip();
+    else if (n === 3 && !isDone('sandhya')) {
+      if (ready(DAYS[2].tasks[4])) offerArghya('sandhya');
+      else toast('Daura abhi khaali hai', 'First fry thekua, pick fruit and sugarcane, and buy a soop.');
+    } else if (n === 4 && !isDone('usha')) offerArghya('usha');
     else floatMine();
   });
-  // anywhere along the water's edge: float a diya
-  interactables.push({ edge: true, r: 0, label: () => 'Float a diya on the river', action: floatMine });
+  // anywhere along the water's edge after dusk on Day 3: float a diya
+  interactables.push({ edge: true, label: () => ((dayN() === 3 && isDone('sandhya')) || (dayN() === 4 && isDone('usha')) ? 'Float a diya' : ''), action: floatMine });
+
   for (const k of kosis) {
-    interactable(k.x, k.z, 2.0, () => (k.lit ? '' : 'Light the kosi diyas'), () => {
-      if (k.lit) return; k.lit = true; sfx.chime();
-      if (collect('kosi')) toast('Kosi jal gayi ✨', 'Diyas under the sugarcane canopy, for a wish fulfilled.');
+    interactable(k, 2.0, () => (dayN() === 3 && isDone('sandhya') && !k.lit ? 'Light the kosi diyas' : ''), () => {
+      k.lit = true; sfx.chime();
+      if (complete('kosi')) toast('Kosi jal gayi ✨', 'Diyas under the sugarcane canopy, for a wish fulfilled.');
     });
   }
-  interactable(24, PROM_Z + 4, 2.6, () => (got.has('thekua') ? 'Thekua le liya. Aur lo?' : 'Take thekua prasad'), () => {
-    if (collect('thekua')) toast('Thekua mila!', 'Wheat, jaggery and ghee, pressed with a wooden mould.'); else toast('Prasad baantne se badhta hai', 'Share it with someone nearby.', 2600);
+  interactable(SABZI, 2.6, () => {
+    const n = dayN();
+    if (n === 1 && !isDone('lauki')) return 'Buy lauki';
+    if (n === 2 && !isDone('gur')) return 'Get gur and chawal';
+    if (n === 3 && !isDone('atta')) return 'Get atta and gur';
+    return 'Chat with the sabzi-wale bhaiya';
+  }, () => {
+    const n = dayN();
+    if (n === 1 && complete('lauki')) toast('Lauki mil gayi 🥒', 'Sabse taaza kaddu, sirf aapke liye.');
+    else if (n === 2 && complete('gur')) toast('Gur aur chawal liye', 'Naya gur, ekdum meetha.');
+    else if (n === 3 && complete('atta')) toast('Atta aur gur liye', 'Thekua ka saaman taiyaar.');
+    else say('Sabzi-wale Bhaiya', pick(['Aaj sab kuch taaza hai! Kal phir aana.', 'Chhath mein daam nahi badhaye, Chhathi Maiya dekh rahi hain!', 'Ghar se door ho? Koi baat nahi, yahan sab apne hain.']));
   });
-  interactable(-24, PROM_Z + 4, 2.6, () => (got.has('ganna') ? '' : 'Pick sugarcane and fruit'), () => {
-    if (collect('ganna')) toast('Ganna aur phal liye', 'Banana, coconut, gagal nimbu and a tall sugarcane.');
+  interactable(FRUIT, 2.6, () => (dayN() === 3 && !isDone('phal') ? 'Pick fruit and sugarcane' : 'Chat with the phal-wali didi'), () => {
+    if (dayN() === 3 && complete('phal')) toast('Ganna aur phal liye 🍌', 'Banana, coconut, gagal nimbu and a tall sugarcane.');
+    else say('Phal-wali Didi', pick(['Sandhya Arghya ke din aana, sabse accha ganna rakha hai.', 'Gagal nimbu itna bada kahin nahi milega!', 'Kela, nariyal, singhara… sab Chhath ke liye.']));
   });
-  interactable(-10, PROM_Z + 4, 2.6, () => (got.has('soop') ? '' : 'Buy a bamboo soop'), () => {
-    if (collect('soop')) toast('Soop le liya 🧺', 'Hand-woven by bamboo craftspeople, used only for Chhath.');
+  interactable(SOOP, 2.6, () => (dayN() === 3 && !isDone('soop') ? 'Buy a soop and daura' : 'Chat with the soop-wale chacha'), () => {
+    if (dayN() === 3 && complete('soop')) toast('Soop aur daura liye 🧺', 'Hand-woven bamboo, used only for Chhath.');
+    else say('Soop-wale Chacha', pick(['Yeh soop mere dada ji ke zamane se isi tarah bunte hain.', 'Bans ka soop, haath ka bana. Plastic nahi chalega Chhath mein!']));
   });
+  interactable(WOOD, 2.2, () => (dayN() === 2 && !isDone('lakdi') ? 'Collect mango wood' : ''), () => {
+    if (complete('lakdi')) toast('Aam ki lakdi li 🪵', 'Kharna is always cooked on mango wood.');
+  });
+  interactable(CHULHA, 2.4, () => {
+    const t = currentTask();
+    const n = dayN();
+    const id = n === 1 ? 'kaddu' : n === 2 ? 'kheer' : n === 3 ? 'thekua' : null;
+    if (!id || isDone(id)) return '';
+    const task = curDay().tasks.find((x) => x.id === id);
+    return ready(task) ? `Cook ${RECIPES[id].title}` : 'Chulha: ingredients missing';
+  }, () => {
+    const n = dayN();
+    const id = n === 1 ? 'kaddu' : n === 2 ? 'kheer' : 'thekua';
+    const task = curDay().tasks.find((x) => x.id === id);
+    if (ready(task)) cook(id);
+    else toast('Saaman abhi nahi hai', n === 1 ? 'Get lauki from the Sabzi stall first.' : n === 2 ? 'You need mango wood, and gur and chawal.' : 'Get atta and gur first.');
+  });
+  // people
+  for (const p of people.filter((q) => q.talk)) {
+    interactable(p, 1.9, () => {
+      if (dayN() === 2 && isDone('kheer') && !isDone('share') && !p.gotPrasad) return `Give Kharna prasad to ${p.name}`;
+      if (dayN() === 4 && isDone('usha') && !isDone('paran')) return `Share prasad with ${p.name}`;
+      return `Talk to ${p.name}`;
+    }, () => {
+      if (dayN() === 2 && isDone('kheer') && !isDone('share') && !p.gotPrasad) {
+        p.gotPrasad = true; state.share++;
+        p.turn = Math.atan2(player.x - p.x, player.z - p.z) + Math.PI;
+        say(p.name, pick(['Kharna ka prasad! Jeete raho. 🙏', 'Waah, rasiya mein gur ekdum sahi hai!', 'Chhathi Maiya sab accha karein. Bahut dhanyavaad!']));
+        sfx.chime();
+        if (state.share >= 3) complete('share'); else { renderQuest(); save(); }
+      } else if (dayN() === 4 && isDone('usha') && !isDone('paran')) {
+        p.turn = Math.atan2(player.x - p.x, player.z - p.z) + Math.PI;
+        say(p.name, `Thekua? Haan haan! Vrat sampann hua, ${player.name || g('beti', 'beta')}. Jai Chhathi Maiya!`);
+        complete('paran');
+      } else talkTo(p);
+    });
+  }
 }
 
 let nearest = null;
@@ -760,166 +1177,144 @@ function updatePrompt() {
   for (const it of interactables) {
     let d;
     if (it.edge) {
-      if (player.z > 1.4 || Math.hypot(player.x - ARGHYA.x, player.z - ARGHYA.z) < 2.4) continue;
+      if (player.z > 1.4 || Math.hypot(player.x - RING.x, player.z - RING.z) < 2.4) continue;
       d = 1.5;
     } else {
-      d = Math.hypot(player.x - it.x, player.z - it.z);
+      d = Math.hypot(player.x - it.pos.x, player.z - it.pos.z);
       if (d > it.r) continue;
     }
     const label = it.label();
     if (label && d < best) { best = d; nearest = { it, label }; }
   }
   const p = $('#prompt');
-  if (nearest && !uiOpen) { $('#promptText').textContent = nearest.label; p.classList.add('on'); }
+  if (nearest && !uiOpen && !player.action) { $('#promptText').textContent = nearest.label; p.classList.add('on'); }
   else p.classList.remove('on');
   $('#act').classList.toggle('ready', !!nearest);
 }
-function interact() { if (nearest && !uiOpen) nearest.it.action(); }
+function interact() { if (nearest && !uiOpen && !player.action) nearest.it.action(); }
 
-let lastFloat = 0;
-function floatMine() {
-  const now = performance.now();
-  if (now - lastFloat < 700) return; lastFloat = now;
-  launchDiya(player.x - Math.sin(player.yaw) * 1.2, Math.min(player.z - 1.2, -0.6), true);
-  sfx.chime();
-  if (collect('diya')) toast('Diya pravahit 🪔', 'Your diya joins the river of lights.');
-}
-
-function offerArghya(kind) {
-  sfx.shankh();
-  // face the sun
-  const target = Math.atan2(-sunVector(sky.elev, sky.az).x, -sunVector(sky.elev, sky.az).z);
-  turnTo = { from: player.yaw, to: target, t: 0 };
-  pourUntil = performance.now() + 3200;
-  pour.visible = true;
-  if (kind === 'sandhya') {
-    toast('Sandhya Arghya arpit 🌇', 'Thanks to Surya Dev for the day that was.', 5000);
-    collect('sandhya');
-    setTimeout(() => {
-      phase = 'setting';
-      animateSky(-14, -32, reduceMotion ? 0.5 : 12, () => {
-        phase = 'night'; setPhaseUI('night'); $('#skip').classList.add('on');
-        toast('Raat ho gayi', 'Kosi bharai time. The ghat glows all night.');
-      });
-    }, 2600);
-  } else {
-    toast('Usha Arghya arpit 🌄', 'The vrat is complete. Jai Chhathi Maiya!', 5000);
-    collect('usha');
-    setTimeout(() => {
-      phase = 'rising';
-      animateSky(6, 32, reduceMotion ? 0.5 : 9, () => {
-        phase = 'done'; setPhaseUI('done');
-        startPetals();
-        setTimeout(() => { $('#finale').classList.add('on'); uiOpen = true; }, 1800);
-      });
-    }, 2200);
-  }
-}
-function goToDawn() {
-  if (phase !== 'night' || anim) return;
-  $('#skip').classList.remove('on');
-  toast('Jaagran…', 'Songs on the ghat through the night. Bhor hone wali hai.', 4000);
-  phase = 'dawning';
-  sky.az = 32;
-  animateSky(-2.5, 32, reduceMotion ? 0.5 : 9, () => {
-    phase = 'usha'; setPhaseUI('usha');
-    toast('Bhor ho gayi 🌄', 'Go back to the ring in the water before the sun rises.');
+// ---------------------------------------------------------------------------
+// Songs (official YouTube embeds, nothing bundled)
+// ---------------------------------------------------------------------------
+const SONGS = [
+  { id: 'L-lzSCH50Cg', title: 'Kartik Mahinwan Ke', by: 'Sharda Sinha', day: 1 },
+  { id: 'DG8F-csoRAQ', title: 'Pahile Pahil Chhathi Maiya', by: 'Sharda Sinha', day: 2 },
+  { id: 'knZ8b5YnQiY', title: 'Kelwa Ke Paat Par', by: 'Sharda Sinha', day: 3 },
+  { id: 'Eyq7vfxu4iA', title: 'Kaanch Hi Baans Ke Bahangiya', by: 'Anuradha Paudwal', day: 3 },
+  { id: 'j74EcjyN1WQ', title: 'Ho Deenanath', by: 'Sharda Sinha', day: 3 },
+  { id: 'j9G3caThH98', title: 'Uthau Suruj Bhaile Bihaan', by: 'Sharda Sinha', day: 4 },
+  { id: 'CqKat91cXWs', title: 'Ugihein Sooraj Gosaiyan Hey', by: 'Sharda Sinha', day: 4 },
+  { id: 'x9_3sARy_Kw', title: 'Hey Chhathi Maiya', by: 'Sharda Sinha' },
+];
+function renderSongs(cur) {
+  const ul = $('#songList'); ul.innerHTML = '';
+  SONGS.forEach((s, i) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button'); b.className = 'song' + (s.id === cur ? ' cur' : '');
+    b.innerHTML = `<span class="n">${s.id === cur ? '♪' : i + 1}</span><span><b></b><small></small></span>${s.day ? `<span class="tag">Din ${s.day}</span>` : ''}`;
+    b.querySelector('b').textContent = s.title; b.querySelector('small').textContent = s.by;
+    b.addEventListener('click', () => playSong(s.id));
+    li.append(b); ul.append(li);
   });
 }
-$('#skip').addEventListener('click', goToDawn);
-
-let turnTo = null, pourUntil = 0;
-function updatePour(dt) {
-  const active = performance.now() < pourUntil;
-  const pos = pourGeo.attributes.position;
-  fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-  let alive = 0;
-  for (let i = 0; i < POUR_N; i++) {
-    const p = pourP[i];
-    if (p.life <= 0 && active && Math.random() < 0.5) {
-      p.x = camera.position.x + fwd.x * 0.6 + rand(-0.03, 0.03); p.y = camera.position.y - 0.25; p.z = camera.position.z + fwd.z * 0.6 + rand(-0.03, 0.03);
-      p.vx = fwd.x * 0.8 + rand(-0.1, 0.1); p.vy = rand(0.2, 0.5); p.vz = fwd.z * 0.8 + rand(-0.1, 0.1); p.life = 1.4;
-    }
-    if (p.life > 0) {
-      p.life -= dt; p.vy -= 6 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      if (p.y < 0) p.life = 0;
-      alive++;
-    }
-    pos.setXYZ(i, p.x, p.life > 0 ? p.y : -50, p.z);
-  }
-  pos.needsUpdate = true;
-  pour.visible = alive > 0;
+function playSong(id) {
+  const s = SONGS.find((x) => x.id === id);
+  const box = $('#player');
+  box.innerHTML = '';
+  const f = document.createElement('iframe');
+  f.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+  f.title = `${s.title} by ${s.by}`;
+  f.allow = 'autoplay; encrypted-media; picture-in-picture';
+  f.referrerPolicy = 'strict-origin-when-cross-origin';
+  f.allowFullscreen = true;
+  box.append(f);
+  renderSongs(id);
+  $('#npTitle').textContent = `${s.title} · ${s.by}`;
+  $('#nowPlaying').hidden = false;
+  $('#geetBtn').classList.add('playing');
+  sfx.drone(false);
+  if (!$('#geet').classList.contains('on')) openDrawer('geet');
 }
+renderSongs();
 
 // ---------------------------------------------------------------------------
-// Sound (synthesised, no files)
+// Sound (synthesised ambience; songs come from YouTube)
 // ---------------------------------------------------------------------------
 const sfx = (() => {
-  let ctx = null, master = null, muted = false;
+  let ctx = null, master = null, droneGain = null, muted = false;
   function init() {
     if (ctx) return;
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain(); master.gain.value = 0.7; master.connect(ctx.destination);
-    // river: filtered brown noise
     const len = ctx.sampleRate * 4, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
     let last = 0; for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.2; }
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
-    const g = ctx.createGain(); g.gain.value = 0.22;
-    src.connect(lp).connect(g).connect(master); src.start();
-    // a soft tanpura-like drone
+    const g0 = ctx.createGain(); g0.gain.value = 0.22;
+    src.connect(lp).connect(g0).connect(master); src.start();
+    droneGain = ctx.createGain(); droneGain.gain.value = 1; droneGain.connect(master);
     for (const [f, v] of [[110, 0.025], [165, 0.016], [220, 0.012]]) {
       const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
       const og = ctx.createGain(); og.gain.value = v;
       const lfo = ctx.createOscillator(); lfo.frequency.value = rand(0.08, 0.2);
       const lg = ctx.createGain(); lg.gain.value = v * 0.6; lfo.connect(lg).connect(og.gain);
-      o.connect(og).connect(master); o.start(); lfo.start();
+      o.connect(og).connect(droneGain); o.start(); lfo.start();
     }
   }
   function tone(freq, dur, type = 'sine', vol = 0.2, delay = 0) {
     if (!ctx || muted) return;
     const t = ctx.currentTime + delay;
-    const o = ctx.createOscillator(), g = ctx.createGain();
+    const o = ctx.createOscillator(), gn = ctx.createGain();
     o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+    gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.01); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(gn).connect(master); o.start(t); o.stop(t + dur + 0.05);
   }
   return {
     init,
     bell() { [880, 1320, 2210, 2960].forEach((f, i) => tone(f, 2.2 - i * 0.4, 'sine', 0.12 / (i + 1))); },
     chime() { tone(1568, 1.2, 'sine', 0.07); tone(2093, 1.0, 'sine', 0.05, 0.08); },
+    splash() {
+      if (!ctx || muted) return;
+      const len = ctx.sampleRate * 0.5, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      const s = ctx.createBufferSource(); s.buffer = buf;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1200; f.Q.value = 0.7;
+      const gn = ctx.createGain(); gn.gain.value = 0.4;
+      s.connect(f).connect(gn).connect(master); s.start();
+    },
     shankh() {
       if (!ctx || muted) return;
-      const t = ctx.currentTime, o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
-      o.type = 'sawtooth'; o2.type = 'sawtooth'; o.frequency.value = 233; o2.frequency.value = 234.5;
+      const t = ctx.currentTime, o = ctx.createOscillator(), o2 = ctx.createOscillator(), gn = ctx.createGain(), f = ctx.createBiquadFilter();
+      o.type = 'sawtooth'; o2.type = 'sawtooth'; o2.frequency.value = 234.5;
       o.frequency.setValueAtTime(220, t); o.frequency.linearRampToValueAtTime(233, t + 0.6);
       f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 1.2;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.7); g.gain.setValueAtTime(0.16, t + 2.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
-      o.connect(f); o2.connect(f); f.connect(g).connect(master); o.start(t); o2.start(t); o.stop(t + 3.3); o2.stop(t + 3.3);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.16, t + 0.7); gn.gain.setValueAtTime(0.16, t + 2.2); gn.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+      o.connect(f); o2.connect(f); f.connect(gn).connect(master); o.start(t); o2.start(t); o.stop(t + 3.3); o2.stop(t + 3.3);
     },
+    drone(on) { if (droneGain) droneGain.gain.value = on ? 1 : 0; },
     toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.7; return muted; },
   };
 })();
 $('#muteBtn').addEventListener('click', () => {
   const m = sfx.toggle();
-  $('#muteBtn').setAttribute('aria-label', m ? 'Unmute sound' : 'Mute sound');
+  $('#muteBtn').setAttribute('aria-label', m ? 'Unmute ambient sound' : 'Mute ambient sound');
   $('#muteBtn').style.opacity = m ? 0.5 : 1;
 });
 
 // ---------------------------------------------------------------------------
-// Drawers, countdown, finale
+// Drawers, support, countdown
 // ---------------------------------------------------------------------------
 let lastFocus = null;
 function openDrawer(id) {
   lastFocus = document.activeElement;
+  document.querySelectorAll('.drawer.on').forEach((d) => d.classList.remove('on'));
   $('#' + id).classList.add('on'); $('#scrim').classList.add('on'); uiOpen = true; keys.clear();
-  if (id === 'basket') renderBasket();
   setTimeout(() => $('#' + id + ' [data-close]').focus(), 50);
 }
 function closeDrawers() {
   document.querySelectorAll('.drawer.on').forEach((d) => d.classList.remove('on'));
   $('#scrim').classList.remove('on');
-  uiOpen = $('#finale').classList.contains('on');
+  uiOpen = document.querySelector('.modal.on') !== null;
   lastFocus?.focus?.();
 }
 document.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openDrawer(b.dataset.open)));
@@ -927,20 +1322,18 @@ document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('cli
 $('#scrim').addEventListener('click', closeDrawers);
 addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawers(); });
 
-$('#stayBtn').addEventListener('click', () => { $('#finale').classList.remove('on'); uiOpen = false; });
-$('#shareBtn').addEventListener('click', async () => {
-  const data = { title: 'Chhath Ghat Online', text: 'Ghat chaloge mere saath? Offer arghya on a 3D Chhath ghat.', url: location.href };
-  try {
-    if (navigator.share) await navigator.share(data);
-    else { await navigator.clipboard.writeText(location.href); $('#shareBtn').textContent = 'Link copied'; }
-  } catch { /* share sheet dismissed */ }
+if (isTouch) $('#upiLink').style.display = 'inline-flex';
+$('#copyUpi').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#upiId').textContent); $('#copyUpi').textContent = 'Copied'; }
+  catch { $('#copyUpi').textContent = 'Select and copy the ID'; }
+  setTimeout(() => { $('#copyUpi').textContent = 'Copy UPI ID'; }, 2200);
 });
 
 function updateCountdown() {
   const ms = SANDHYA - Date.now();
   const intro = $('#introCount');
   if (ms <= 0) {
-    intro.innerHTML = '<b>Jai Chhathi Maiya!</b> Chhath 2026 has arrived';
+    intro.innerHTML = '<b>Jai Chhathi Maiya!</b> Chhath 2026 is here';
     $('#bigCount').innerHTML = '<div style="grid-column:1/-1"><b>Jai Chhathi Maiya</b><span>Chhath is here</span></div>';
     return;
   }
@@ -968,18 +1361,36 @@ function applySky() {
   waterUniforms.glowAmt.value = night;
   scene.fog.color.copy(s.hor).multiplyScalar(0.85);
   sunLight.position.copy(sunV).multiplyScalar(100);
-  sunLight.color.copy(s.sun.r + s.sun.g > 0 ? s.sun : cA.setHex(0x000000));
+  sunLight.color.copy(s.sun);
   sunLight.intensity = Math.max(0, sunV.y) * 6 * s.si + smooth(-3, 2, sky.elev) * 0.6;
   hemi.color.copy(s.zen).lerp(cA.setHex(0xffe0b0), 0.5);
   hemi.groundColor.setHex(0x3a2418);
   hemi.intensity = s.amb * 1.6 + 0.12;
   ghatGlow.intensity = night * 16;
-  // lights
   diyaGlow.uniforms.intensity.value = 0.25 + night * 1.0;
   lightGlow.uniforms.intensity.value = 0.08 + night * 1.0;
   floatGlow.uniforms.intensity.value = 0.6 + night * 0.6;
   ringGlow.uniforms.intensity.value = 0.6 + night * 0.4;
+  fireLight.intensity = fireGlow.uniforms.intensity.value * (2 + night * 6);
   return night;
+}
+
+function updatePour(dt) {
+  const active = performance.now() < pourUntil;
+  const pos = pourGeo.attributes.position;
+  const fx = -Math.sin(player.facing), fz = -Math.cos(player.facing);
+  for (let i = 0; i < POUR_N; i++) {
+    const p = pourP[i];
+    if (p.life <= 0 && active && Math.random() < 0.5) {
+      Object.assign(p, { x: player.x + fx * 0.45 + rand(-0.03, 0.03), y: player.y + 1.6, z: player.z + fz * 0.45 + rand(-0.03, 0.03), vx: fx * 0.7 + rand(-0.1, 0.1), vy: rand(0.2, 0.5), vz: fz * 0.7 + rand(-0.1, 0.1), life: 1.4 });
+    }
+    if (p.life > 0) {
+      p.life -= dt; p.vy -= 6 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+      if (p.y < 0) p.life = 0;
+    }
+    pos.setXYZ(i, p.x, p.life > 0 ? p.y : -50, p.z);
+  }
+  pos.needsUpdate = true;
 }
 
 const clock = new THREE.Clock();
@@ -994,16 +1405,15 @@ function frame() {
   }
   const night = applySky();
   skyUniforms.time.value = t; waterUniforms.time.value = t;
-  for (const g of glowSets) g.uniforms.time.value = t;
+  for (const gs of glowSets) gs.uniforms.time.value = t;
   for (const k of kosis) { k.level = lerp(k.level, k.lit ? 1 : 0, 1 - Math.exp(-3 * dt)); k.glow.uniforms.intensity.value = k.level * (0.7 + night); }
   ring.material.opacity = 0.45 + 0.35 * Math.sin(t * 2.4);
   ring.scale.setScalar(1 + 0.05 * Math.sin(t * 2.4));
-  ring.visible = ringGlow.points.visible = phase !== 'done';
   for (const p of people) {
     p.g.position.y = p.base + Math.sin(t * 0.9 + p.phase) * 0.012;
     if (p.soop) p.soop.position.y = 1.35 + Math.max(0, Math.sin(t * 0.5 + p.phase)) * 0.25;
+    if (p.turn != null) { p.g.rotation.y += angleTo(p.g.rotation.y, p.turn) * Math.min(1, dt * 6); }
   }
-  // devotees keep floating diyas after dusk
   ambientTimer -= dt;
   if (night > 0.4 && ambientTimer <= 0) { ambientTimer = rand(0.6, 1.6); launchDiya(rand(-40, 30), rand(-1.6, -0.8)); }
   updateFloaters(dt, t);
@@ -1012,19 +1422,26 @@ function frame() {
     petP.forEach((p, i) => { p.y -= p.s * dt * 0.9; if (p.y < 0) p.y = rand(10, 16); pos.setXYZ(i, p.x + Math.sin(t * p.s + p.ph) * 0.6, p.y, p.z + Math.cos(t * 0.7 + p.ph) * 0.4); });
     pos.needsUpdate = true;
   }
+  // quest marker over the next task
+  const target = started ? taskTarget(currentTask()) : null;
+  marker.visible = !!target && !player.action;
+  if (target) {
+    const ty = target === RING ? 0 : groundY(target.z) + (target.talk ? 0.6 : 0);
+    marker.position.set(target.x, ty, target.z);
+    gem.position.y = 2.6 + Math.sin(t * 2.5) * 0.18; gem.rotation.y = t * 1.5;
+    beam.material.opacity = 0.12 + 0.06 * Math.sin(t * 3);
+  }
   if (started) {
-    if (!uiOpen) updatePlayer(dt);
-    if (turnTo) {
-      turnTo.t = Math.min(1, turnTo.t + dt / 1.2);
-      let diff = turnTo.to - turnTo.from; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      player.yaw = turnTo.from + diff * ease(turnTo.t);
-      player.pitch = lerp(player.pitch, 0.08, 0.05);
-      if (turnTo.t >= 1) turnTo = null;
+    if (player.turnCam) {
+      const tc = player.turnCam; tc.t = Math.min(1, tc.t + dt / 1.2);
+      player.yaw = tc.from + angleTo(tc.from, tc.to) * ease(tc.t);
+      player.pitch = lerp(player.pitch, 0.12, 0.05);
+      if (tc.t >= 1) player.turnCam = null;
     }
+    updatePlayer(dt, t);
     updatePour(dt);
     updatePrompt();
   } else {
-    // slow cinematic drift behind the landing card
     camera.position.set(Math.sin(t * 0.05) * 10, TOP + 1.2, PROM_Z - 0.6);
     camera.rotation.set(-0.05, Math.sin(t * 0.05) * 0.12, 0);
   }
@@ -1040,32 +1457,62 @@ addEventListener('resize', () => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-buildGhat(); buildFarBank(); buildPromenade(); buildStepDiyas();
+buildGhat(); buildFarBank(); buildPromenade(); buildAangan(); buildStepDiyas();
 makeKosi(-17, 5.6); makeKosi(-5, 3.4); makeKosi(8, 6.4); makeKosi(19, 4.1); makeKosi(31, 7.0); makeKosi(-30, 6.2);
-buildStalls(); buildPeople(); setupInteractions(); renderBasket(); setPhaseUI('sandhya');
+buildStalls(); buildPeople(); setupInteractions();
 camera.rotation.order = 'YXZ';
 requestAnimationFrame(frame);
 
-// Redraw Devanagari signs once the display font is ready
 Promise.race([document.fonts.load('48px "Yatra One"', 'छठ घाट'), new Promise((r) => setTimeout(r, 2500))])
   .catch(() => {})
   .finally(() => {
-    signs.forEach((s) => s.userData.rebuild?.());
+    signs.forEach((fn) => fn());
     $('#loading').textContent = '';
     $('#startBtn').disabled = false;
   });
 if (isTouch) $('#hintDesk').textContent = 'Left thumb to walk · drag to look · tap the button to interact';
 
-$('#startBtn').addEventListener('click', () => {
+const saved = load();
+if (saved && saved.day != null) {
+  $('#continueBtn').hidden = false;
+  $('#continueBtn').textContent = `Continue: Din ${saved.day + 1}`;
+}
+
+function enterGhat() {
   sfx.init();
   started = true;
+  buildAvatar();
   $('#intro').classList.add('hide');
+  $('#who').classList.add('hide');
   $('#hud').classList.add('on');
-  player.y = groundY(player.z) + EYE;
-  setTimeout(() => toast('Ghat pe swagat hai 🙏', 'Walk down the steps to the glowing ring in the water.'), 600);
+}
+
+// who are you
+document.querySelectorAll('.who-opt').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.who-opt').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  player.gender = b.dataset.g;
+}));
+$('#startBtn').addEventListener('click', () => {
+  $('#intro').classList.add('hide');
+  $('#who').classList.remove('hide');
+  setTimeout(() => document.querySelector('.who-opt[aria-pressed="true"]').focus(), 50);
 });
-// URL hook for screenshots/tests: ?phase=night|usha|done
-window.__ghat = { player, get phase() { return phase; }, got, kosis, floaters };
-const q = new URLSearchParams(location.search).get('phase');
-if (q === 'night') { sky.elev = -14; phase = 'night'; setPhaseUI('night'); $('#skip').classList.add('on'); }
-if (q === 'usha') { sky.elev = -2.5; sky.az = 32; phase = 'usha'; setPhaseUI('usha'); }
+$('#whoGo').addEventListener('click', () => {
+  player.name = $('#nameIn').value.trim().slice(0, 24);
+  state.done.clear(); state.share = 0;
+  enterGhat();
+  startDay(0);
+});
+$('#continueBtn').addEventListener('click', () => {
+  player.gender = saved.g || 'f'; player.name = saved.name || '';
+  state.done = new Set(saved.done || []); state.share = saved.share || 0;
+  enterGhat();
+  startDay(clamp(saved.day, 0, 3), { fresh: false });
+  // resume the sky if the day's arghya was already offered
+  if (saved.day === 2 && state.done.has('sandhya')) sky.elev = -14;
+  if (saved.day === 3 && state.done.has('usha')) sky.elev = 6;
+  if (saved.day === 1 && state.done.has('kheer')) sky.elev = -10;
+});
+
+// test hook
+window.__ghat = { player, state, get day() { return state.day; }, startDay, complete, kosis, people };

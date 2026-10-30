@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Chhath Ghat Online</title>
-<meta name="description" content="Walk a glowing Chhath Puja ghat in your browser. Offer arghya to the setting and rising sun, float diyas, light the kosi and learn the four days of Chhath 2026.">
+<meta name="description" content="Can't go home for Chhath? Live all four days of Chhath Puja on a 3D ghat in your browser: Nahay Khay, Kharna, Sandhya Arghya and Usha Arghya, with Sharda Sinha's Chhath geet.">
 <meta name="theme-color" content="#1a1020">
 <meta property="og:title" content="Chhath Ghat Online — Ghat chaloge mere saath?">
-<meta property="og:description" content="A free 3D Chhath Puja ghat in your browser. Arghya, diyas, kosi, thekua and the full 2026 festival guide.">
+<meta property="og:description" content="Ghar nahi ja paaye? Live all four days of Chhath on a 3D ghat: snan, kharna, thekua, arghya, kosi and Chhath geet.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='30' r='14' fill='%23f59e0b'/%3E%3Cpath d='M8 46h48' stroke='%23d9480f' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M14 54h36' stroke='%2338bdf8' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
 :root{
   --ink:#1a1020; --panel:#22162b; --panel-2:#2c1d37; --line:#4a3456;
   --cream:#fff4e0; --muted:#d9c6b8; --saffron:#f59e0b; --sindoor:#d9480f;
-  --river:#38bdf8; --leaf:#4d7c0f;
+  --leaf:#65a30d;
   --display:"Yatra One", "Mukta", system-ui, sans-serif;
   --body:"Mukta", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -24,51 +24,86 @@
 html,body{margin:0;height:100%;background:var(--ink);color:var(--cream);font-family:var(--body);overflow:hidden;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;cursor:pointer}
 #scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+[hidden]{display:none !important}
 
-/* ---------- landing overlay ---------- */
-#intro{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;
-  background:radial-gradient(120% 80% at 50% 100%, rgba(217,72,15,.55), rgba(26,16,32,.92) 60%);transition:opacity .5s ease}
-#intro.hide{opacity:0;pointer-events:none}
-.intro-card{max-width:560px;width:100%;text-align:center}
+/* ---------- full-screen overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;transition:opacity .45s ease}
+.overlay.hide{opacity:0;pointer-events:none}
+#intro{background:radial-gradient(120% 80% at 50% 100%, rgba(217,72,15,.55), rgba(26,16,32,.92) 60%)}
+.intro-card{max-width:560px;width:100%;text-align:center;margin:auto}
 .eyebrow{display:inline-block;font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:13px;color:var(--saffron);margin-bottom:8px}
-#intro h1{font-family:var(--display);font-weight:400;font-size:clamp(40px,9vw,72px);line-height:1.05;margin:0 0 4px;color:var(--cream)}
-#intro .hook{font-family:var(--display);font-size:clamp(22px,5vw,30px);color:#fcd34d;margin:0 0 16px}
-#intro p.lede{color:var(--muted);font-size:17px;line-height:1.55;margin:0 auto 20px;max-width:46ch}
-.countdown{display:inline-flex;gap:8px;align-items:baseline;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 16px;margin-bottom:24px;font-size:15px}
+#intro h1{font-family:var(--display);font-weight:400;font-size:clamp(40px,9vw,72px);line-height:1.05;margin:0 0 4px}
+.hook{font-family:var(--display);font-size:clamp(22px,5vw,30px);color:#fcd34d;margin:0 0 14px}
+p.lede{color:var(--muted);font-size:17px;line-height:1.55;margin:0 auto 18px;max-width:46ch}
+.countdown{display:inline-flex;gap:8px;align-items:baseline;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 16px;margin-bottom:22px;font-size:15px}
 .countdown b{color:var(--saffron);font-variant-numeric:tabular-nums}
 .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.btn{border:0;border-radius:12px;padding:14px 24px;font-weight:700;font-size:17px;min-height:48px}
+.btn{border:0;border-radius:12px;padding:13px 22px;font-weight:700;font-size:17px;min-height:48px}
 .btn-primary{background:var(--saffron);color:#2a1300}
 .btn-primary:hover{background:#fbbf24}
+.btn-primary:disabled{opacity:.5;cursor:wait}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--cream)}
 .btn-ghost:hover{border-color:var(--saffron)}
-.btn:focus-visible,.icon-btn:focus-visible,.chip:focus-visible{outline:3px solid #fde68a;outline-offset:2px}
-.controls-hint{margin-top:20px;color:var(--muted);font-size:14px;line-height:1.6}
+.btn-wa{background:#1f9d55;color:#fff}
+.btn:focus-visible,.icon-btn:focus-visible,.chip:focus-visible,.who-opt:focus-visible,.song:focus-visible{outline:3px solid #fde68a;outline-offset:2px}
+.controls-hint{margin-top:18px;color:var(--muted);font-size:14px;line-height:1.6}
 .controls-hint kbd{font-family:inherit;background:var(--panel-2);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;font-size:13px}
 #loading{margin-top:12px;font-size:14px;color:var(--muted);min-height:20px}
+.tiny-link{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;font-size:14px;margin-top:14px;padding:8px}
+.tiny-link:hover{color:var(--saffron)}
+
+/* who are you */
+#who{background:rgba(26,16,32,.94);z-index:21}
+.who-card{max-width:560px;width:100%;text-align:center;margin:auto}
+.who-card h2{font-family:var(--display);font-weight:400;font-size:clamp(28px,6vw,40px);margin:0 0 6px}
+.who-card p{color:var(--muted);margin:0 0 20px}
+.who-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.who-opt{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:16px 10px 14px;text-align:center}
+.who-opt:hover{border-color:#a16207}
+.who-opt[aria-pressed="true"]{border-color:var(--saffron);background:var(--panel-2)}
+.who-opt svg{width:84px;height:110px;display:block;margin:0 auto 8px}
+.who-opt b{display:block;font-family:var(--display);font-weight:400;font-size:21px}
+.who-opt small{color:var(--muted);font-size:14px}
+.field{text-align:left;margin:0 auto 18px;max-width:340px}
+.field label{display:block;font-weight:600;font-size:15px;margin-bottom:6px}
+.field input{width:100%;font:inherit;font-size:17px;color:var(--cream);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-height:46px}
+.field input:focus{outline:2px solid var(--saffron);border-color:transparent}
+.field .help{font-size:13px;color:#b8a597;margin-top:4px}
 
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .4s}
 #hud.on{opacity:1}
 .hud-top{position:absolute;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.phase{pointer-events:auto;background:rgba(26,16,32,.82);border:1px solid var(--line);border-radius:12px;padding:8px 14px;max-width:62vw}
-.phase .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--saffron);font-weight:700}
-.phase .v{font-family:var(--display);font-size:20px;line-height:1.2}
-.phase .s{font-size:13px;color:var(--muted)}
-.hud-btns{display:flex;gap:8px;pointer-events:auto}
-.icon-btn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:rgba(26,16,32,.82);display:grid;place-items:center;position:relative}
+.quest{pointer-events:auto;background:rgba(26,16,32,.86);border:1px solid var(--line);border-radius:14px;padding:10px 14px 10px;width:min(320px,58vw)}
+.qhead{display:block;width:100%;text-align:left;background:none;border:0;padding:0}
+.qhead .k{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--saffron);font-weight:700}
+.qhead .v{display:block;font-family:var(--display);font-size:21px;line-height:1.2}
+.quest ol{list-style:none;margin:8px 0 0;padding:0;font-size:14px;line-height:1.35}
+.quest li{display:flex;gap:8px;padding:3px 0;color:#bfae9f}
+.quest li::before{content:"";flex:none;width:14px;height:14px;margin-top:2px;border-radius:4px;border:2px solid #6b5577}
+.quest li.done{color:#8f7f86;text-decoration:line-through}
+.quest li.done::before{background:var(--leaf);border-color:var(--leaf)}
+.quest li.cur{color:var(--cream);font-weight:600}
+.quest li.cur::before{border-color:var(--saffron);box-shadow:0 0 0 3px rgba(245,158,11,.25)}
+.quest.collapsed li:not(.cur){display:none}
+.hud-btns{display:flex;gap:8px;pointer-events:auto;flex-wrap:wrap;justify-content:flex-end;max-width:200px}
+.icon-btn{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:rgba(26,16,32,.86);display:grid;place-items:center;position:relative}
 .icon-btn:hover{border-color:var(--saffron)}
 .icon-btn svg{width:22px;height:22px}
-.badge{position:absolute;top:-6px;right:-6px;background:var(--sindoor);color:#fff;font-size:11px;font-weight:700;border-radius:999px;min-width:20px;height:20px;display:grid;place-items:center;padding:0 5px}
-#prompt{position:absolute;left:50%;bottom:max(28px,env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(26,16,32,.9);border:1px solid var(--saffron);border-radius:999px;padding:10px 18px;font-weight:600;font-size:16px;opacity:0;transition:opacity .2s;white-space:nowrap;pointer-events:auto}
+.icon-btn.playing{border-color:var(--saffron);color:var(--saffron)}
+#nowPlaying{position:absolute;right:12px;top:calc(max(12px,env(safe-area-inset-top)) + 56px);pointer-events:auto;max-width:min(300px,60vw);display:flex;align-items:center;gap:8px;background:rgba(26,16,32,.88);border:1px solid var(--saffron);border-radius:999px;padding:6px 12px 6px 10px;font-size:13px}
+#nowPlaying span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nowPlaying i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--saffron);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.3}}
+#prompt{position:absolute;left:50%;bottom:max(28px,env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(26,16,32,.92);border:1px solid var(--saffron);border-radius:999px;padding:10px 18px;font-weight:600;font-size:16px;opacity:0;transition:opacity .2s;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
 #prompt.on{opacity:1}
 #prompt kbd{font-family:inherit;background:var(--saffron);color:#2a1300;border-radius:6px;padding:0 7px;margin-right:6px}
-#toast{position:absolute;left:50%;top:22%;transform:translate(-50%,8px);max-width:min(560px,calc(100vw - 32px));text-align:center;font-family:var(--display);font-size:clamp(20px,4.6vw,28px);line-height:1.3;color:#fff7e6;text-shadow:0 2px 12px rgba(0,0,0,.7);opacity:0;transition:opacity .5s, transform .5s}
+#toast{position:absolute;left:50%;top:24%;transform:translate(-50%,8px);width:max-content;max-width:min(560px,calc(100vw - 32px));text-align:center;font-family:var(--display);font-size:clamp(20px,4.6vw,28px);line-height:1.3;color:#fff7e6;text-shadow:0 2px 12px rgba(0,0,0,.7);opacity:0;transition:opacity .5s, transform .5s}
 #toast.on{opacity:1;transform:translate(-50%,0)}
-#toast small{display:block;font-family:var(--body);font-size:15px;color:var(--muted);margin-top:6px;text-shadow:0 1px 6px rgba(0,0,0,.8)}
-#skip{position:absolute;right:12px;top:calc(max(12px,env(safe-area-inset-top)) + 56px);pointer-events:auto;display:none}
-#skip.on{display:block}
-.chip{border:1px solid var(--saffron);background:rgba(26,16,32,.88);color:var(--cream);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;min-height:40px}
+#toast small{display:block;font-family:var(--body);font-size:15px;color:#f1e4d6;margin-top:6px;text-shadow:0 1px 6px rgba(0,0,0,.9)}
+#say{position:absolute;left:50%;bottom:calc(max(28px,env(safe-area-inset-bottom)) + 58px);transform:translate(-50%,8px);width:min(460px,calc(100vw - 32px));background:var(--cream);color:#2a1300;border-radius:14px;padding:10px 14px;font-size:16px;line-height:1.45;opacity:0;transition:opacity .3s,transform .3s}
+#say.on{opacity:1;transform:translate(-50%,0)}
+#say b{display:block;font-size:13px;color:var(--sindoor);text-transform:uppercase;letter-spacing:.05em}
 
 /* touch controls */
 #joy{position:absolute;left:20px;bottom:max(24px,env(safe-area-inset-bottom));width:120px;height:120px;border-radius:50%;background:rgba(255,244,224,.08);border:2px solid rgba(255,244,224,.25);pointer-events:auto;display:none;touch-action:none}
@@ -76,14 +111,40 @@ button{font:inherit;color:inherit;cursor:pointer}
 #act{position:absolute;right:20px;bottom:max(36px,env(safe-area-inset-bottom));width:76px;height:76px;border-radius:50%;border:0;background:var(--saffron);color:#2a1300;font-weight:700;pointer-events:auto;display:none;opacity:.45;font-size:15px}
 #act.ready{opacity:1}
 body.touch #joy, body.touch #act{display:block}
-body.touch #prompt{bottom:auto;top:calc(max(12px,env(safe-area-inset-top)) + 70px)}
+body.touch #prompt{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 132px)}
 body.touch #prompt kbd{display:none}
+body.touch #say{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 184px)}
 
-/* ---------- drawers (guide + basket) ---------- */
+/* ---------- modal cards (day intro, day done, cooking, finale) ---------- */
+.modal{position:fixed;inset:0;z-index:25;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(18,10,24,.6);overflow-y:auto}
+.modal.on{display:flex}
+.card{background:var(--panel);border:1px solid var(--saffron);border-radius:16px;padding:22px;max-width:460px;width:100%;text-align:center;margin:auto}
+.card .eyebrow{margin-bottom:4px}
+.card h2{font-family:var(--display);font-weight:400;font-size:32px;margin:0 0 8px;color:#fcd34d;line-height:1.15}
+.card p{color:var(--muted);line-height:1.55;margin:0 0 14px}
+.card ul{text-align:left;color:var(--cream);margin:0 0 16px;padding-left:20px;line-height:1.6}
+.card .actions{margin-top:4px}
+.song-tip{font-size:14px;color:var(--muted);margin:-4px 0 14px}
+.song-tip button{background:none;border:0;color:var(--saffron);text-decoration:underline;text-underline-offset:3px;padding:4px}
+
+/* cooking mini-game */
+.bar{position:relative;height:28px;border-radius:999px;background:#3a2547;border:1px solid var(--line);margin:18px 0 10px;overflow:hidden}
+.bar .zone{position:absolute;top:0;bottom:0;background:linear-gradient(90deg,#f59e0b,#fcd34d,#f59e0b);border-radius:6px}
+.bar .needle{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;background:#fff;border-radius:3px;box-shadow:0 0 8px #fff}
+.bar.miss{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.dots{display:flex;gap:8px;justify-content:center;margin-bottom:14px}
+.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--saffron)}
+.dots i.on{background:var(--saffron)}
+#cookStep{min-height:26px;font-weight:600;color:var(--cream) !important}
+.kbdhint{font-size:13px;color:#b8a597;margin-top:10px}
+
+/* ---------- drawers ---------- */
 .scrim{position:fixed;inset:0;background:rgba(10,6,14,.55);z-index:30;opacity:0;pointer-events:none;transition:opacity .25s}
 .scrim.on{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--panel);border-left:1px solid var(--line);z-index:31;transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
-.drawer.on{transform:none}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--panel);border-left:1px solid var(--line);z-index:31;transform:translateX(102%);transition:transform .3s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;visibility:hidden}
+.drawer.on{transform:none;visibility:visible}
+#geet{visibility:visible} /* keeps the YouTube player alive while closed */
 .drawer header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px 20px;border-bottom:1px solid var(--line)}
 .drawer header h2{font-family:var(--display);font-weight:400;font-size:26px;margin:0}
 .drawer .body{overflow-y:auto;padding:8px 20px 32px;-webkit-overflow-scrolling:touch}
@@ -108,72 +169,143 @@ td{color:var(--muted);font-variant-numeric:tabular-nums}
 .big-count div{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;text-align:center;padding:10px 0}
 .big-count b{display:block;font-family:var(--display);font-size:28px;font-weight:400;color:var(--saffron);font-variant-numeric:tabular-nums}
 .big-count span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:8px}
-.item{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;gap:10px;align-items:flex-start}
-.item .e{font-size:28px;line-height:1;filter:grayscale(1);opacity:.35}
-.item.got .e{filter:none;opacity:1}
-.item.got{border-color:var(--saffron)}
-.item b{display:block;font-size:15px}
-.item small{display:block;color:var(--muted);font-size:13px;line-height:1.4}
-.progress{height:8px;background:var(--panel-2);border-radius:999px;overflow:hidden;margin:6px 0 4px}
-.progress i{display:block;height:100%;background:var(--saffron);width:0;transition:width .4s}
 footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
 
-/* finale */
-#finale{position:fixed;inset:0;z-index:25;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(26,16,32,.55)}
-#finale.on{display:flex}
-#finale .card{background:var(--panel);border:1px solid var(--saffron);border-radius:16px;padding:24px;max-width:440px;text-align:center}
-#finale h2{font-family:var(--display);font-weight:400;font-size:32px;margin:0 0 8px;color:#fcd34d}
-#finale p{color:var(--muted);line-height:1.55;margin:0 0 16px}
+/* songs */
+.player{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin:14px 0 6px;display:grid;place-items:center;color:var(--muted);font-size:15px;text-align:center;padding:0}
+.player iframe{width:100%;height:100%;border:0;display:block}
+.songs{list-style:none;padding:0 !important;margin:10px 0 0 !important}
+.song{display:flex;width:100%;align-items:center;gap:12px;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.song:hover{border-color:#a16207}
+.song.cur{border-color:var(--saffron)}
+.song .n{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--saffron);color:#2a1300;font-weight:700}
+.song b{display:block;font-size:16px;color:var(--cream)}
+.song small{display:block;font-size:13px;color:var(--muted)}
+.song .tag{margin-left:auto;flex:none;font-size:12px;color:var(--saffron);border:1px solid #7c4a0a;border-radius:999px;padding:2px 8px}
 
-@media (prefers-reduced-motion: reduce){
-  *{transition-duration:.01ms !important}
-}
+/* support */
+.qr{background:#fff;border-radius:14px;padding:10px;max-width:300px;margin:14px auto 10px}
+.qr img{display:block;width:100%;height:auto}
+.upi{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.upi code{font-family:inherit;font-size:16px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--cream)}
+.chip{border:1px solid var(--saffron);background:rgba(26,16,32,.88);color:var(--cream);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px;min-height:40px}
+
+@media (prefers-reduced-motion: reduce){ *{transition-duration:.01ms !important;animation:none !important} }
 @media (max-width:520px){
-  .phase .v{font-size:17px}
-  .grid{grid-template-columns:1fr}
+  .qhead .v{font-size:18px}
+  .quest{padding:8px 12px}
+  .hud-btns{max-width:100px}
+  .card h2{font-size:27px}
 }
 </style>
 </head>
 <body>
 <canvas id="scene" aria-label="3D Chhath ghat scene"></canvas>
 
-<section id="intro" aria-labelledby="title">
+<!-- landing -->
+<section id="intro" class="overlay" aria-labelledby="title">
   <div class="intro-card">
     <span class="eyebrow">Chhath Mahaparv · 13–16 Nov 2026</span>
     <h1 id="title">Chhath Ghat Online</h1>
     <p class="hook">Ghat chaloge mere saath?</p>
-    <p class="lede">Walk down a glowing river ghat at sunset. Offer arghya to the setting sun, float a diya, light the kosi, pick up thekua prasad, and stay till the dawn arghya.</p>
+    <p class="lede">Ghar nahi ja paaye is baar? Live all four days of Chhath right here: the holy dip, Kharna kheer, frying thekua, arghya at sunset and dawn, with Sharda Sinha ji's geet playing on the ghat.</p>
     <div class="countdown" id="introCount" aria-live="polite">Sandhya Arghya in <b>…</b></div>
     <div class="actions">
       <button class="btn btn-primary" id="startBtn" disabled>Chalo ghat!</button>
-      <button class="btn btn-ghost" data-open="guide">Read the festival guide</button>
+      <button class="btn btn-ghost" id="continueBtn" hidden>Continue</button>
+      <button class="btn btn-ghost" data-open="guide">Festival guide</button>
     </div>
     <div id="loading">Ghat saja rahe hain… (setting up the ghat)</div>
     <div class="controls-hint" id="hintDesk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk · drag to look · <kbd>E</kbd> interact</div>
+    <button class="tiny-link" data-open="support">Support the creator</button>
+  </div>
+</section>
+
+<!-- who are you -->
+<section id="who" class="overlay hide" aria-labelledby="whoTitle">
+  <div class="who-card">
+    <span class="eyebrow">Step 1 of 1</span>
+    <h2 id="whoTitle">Aap kaun ho?</h2>
+    <p>Pick who you'll play as on the ghat.</p>
+    <div class="who-opts" role="group" aria-label="Choose your character">
+      <button class="who-opt" data-g="f" aria-pressed="true">
+        <svg viewBox="0 0 84 110" aria-hidden="true"><circle cx="42" cy="20" r="12" fill="#8d5a3b"/><path d="M30 18a12 12 0 0 1 24 0c0-9-5-13-12-13s-12 4-12 13z" fill="#1c1410"/><rect x="41" y="7" width="2" height="7" fill="#c81e1e"/><path d="M28 36h28l10 70H18z" fill="#f59f00"/><path d="M50 36l8 0-14 70h-8z" fill="#c92a2a"/></svg>
+        <b>Vratin</b><small>Female · saree</small>
+      </button>
+      <button class="who-opt" data-g="m" aria-pressed="false">
+        <svg viewBox="0 0 84 110" aria-hidden="true"><circle cx="42" cy="20" r="12" fill="#8d5a3b"/><path d="M30 17a12 12 0 0 1 24 0c0-7-5-11-12-11s-12 4-12 11z" fill="#1c1410"/><path d="M28 34h28l3 38H25z" fill="#e8590c"/><path d="M25 72h34l4 34H21z" fill="#f3efe6"/></svg>
+        <b>Vrati</b><small>Male · dhoti-kurta</small>
+      </button>
+    </div>
+    <div class="field">
+      <label for="nameIn">Your name (optional)</label>
+      <input id="nameIn" maxlength="24" autocomplete="given-name" placeholder="e.g. Priya">
+      <div class="help">People on the ghat will greet you by name.</div>
+    </div>
+    <div class="actions"><button class="btn btn-primary" id="whoGo">Ghat chalo</button></div>
   </div>
 </section>
 
 <div id="hud">
   <div class="hud-top">
-    <div class="phase" aria-live="polite"><div class="k" id="phK">Day 3</div><div class="v" id="phV">Sandhya Arghya</div><div class="s" id="phS">Sun, 15 Nov 2026 · walk to the glowing ring in the water</div></div>
+    <div class="quest" id="quest">
+      <button class="qhead" id="qToggle" aria-expanded="true" aria-controls="qList"><span class="k" id="qK">Din 1</span><span class="v" id="qV">Nahay Khay</span></button>
+      <ol id="qList"></ol>
+    </div>
     <div class="hud-btns">
+      <button class="icon-btn" data-open="geet" id="geetBtn" aria-label="Chhath geet" title="Chhath geet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
       <button class="icon-btn" data-open="guide" aria-label="Festival guide" title="Festival guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h8M8 11h6"/></svg></button>
-      <button class="icon-btn" data-open="basket" aria-label="Prasad basket" title="Prasad basket"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18l-2 10H5z"/><path d="M8 10l4-6 4 6"/></svg><span class="badge" id="badge">0</span></button>
-      <button class="icon-btn" id="muteBtn" aria-label="Mute sound" title="Sound"><svg id="sndOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+      <button class="icon-btn" data-open="support" aria-label="Support the creator" title="Support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg></button>
+      <button class="icon-btn" id="muteBtn" aria-label="Mute ambient sound" title="Ambient sound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
     </div>
   </div>
-  <button class="chip" id="skip">Jaagran: wait for dawn →</button>
+  <button id="nowPlaying" data-open="geet" hidden><i></i><span id="npTitle"></span></button>
   <div id="toast"></div>
+  <div id="say" aria-live="polite"><b id="sayWho"></b><span id="sayText"></span></div>
   <div id="prompt"><kbd>E</kbd><span id="promptText"></span></div>
   <div id="joy"><i></i></div>
   <button id="act" aria-label="Interact">Tap</button>
 </div>
 
-<div id="finale"><div class="card">
-  <h2>Jai Chhathi Maiya!</h2>
-  <p>Usha Arghya is offered and the vrat is complete. Paran time: a sip of water, a bite of ginger and thekua. Chhath Mahaparv ki hardik shubhkamnayein.</p>
+<!-- day intro -->
+<div class="modal" id="dayCard" role="dialog" aria-modal="true" aria-labelledby="dayTitle"><div class="card">
+  <span class="eyebrow" id="dayEyebrow">Din 1 · Fri, 13 Nov</span>
+  <h2 id="dayTitle">Nahay Khay</h2>
+  <p id="dayDesc"></p>
+  <ul id="dayTasks"></ul>
+  <p class="song-tip">Aaj ka geet: <button id="daySong"></button></p>
+  <div class="actions"><button class="btn btn-primary" id="dayGo">Shuru karein</button></div>
+</div></div>
+
+<!-- day complete -->
+<div class="modal" id="doneCard" role="dialog" aria-modal="true" aria-labelledby="doneTitle"><div class="card">
+  <span class="eyebrow" id="doneEyebrow">Din 1 sampann</span>
+  <h2 id="doneTitle">Shabaash!</h2>
+  <p id="doneDesc"></p>
   <div class="actions">
+    <button class="btn btn-primary" id="nextDay">Agla din →</button>
+    <button class="btn btn-wa" data-wish>Send wishes home</button>
+  </div>
+</div></div>
+
+<!-- cooking -->
+<div class="modal" id="cook" role="dialog" aria-modal="true" aria-labelledby="cookTitle"><div class="card">
+  <span class="eyebrow">Chulha pe</span>
+  <h2 id="cookTitle">Kaddu-bhaat</h2>
+  <p id="cookStep">Stop the needle in the golden zone</p>
+  <div class="bar" id="cookBar"><div class="zone" id="cookZone"></div><div class="needle" id="cookNeedle"></div></div>
+  <div class="dots" id="cookDots"><i></i><i></i><i></i></div>
+  <div class="actions"><button class="btn btn-primary" id="cookBtn">Abhi!</button></div>
+  <div class="kbdhint" id="cookHint">Press E or Space</div>
+</div></div>
+
+<!-- finale -->
+<div class="modal" id="finale" role="dialog" aria-modal="true" aria-labelledby="finTitle"><div class="card">
+  <span class="eyebrow">Din 4 · Paran</span>
+  <h2 id="finTitle">Jai Chhathi Maiya!</h2>
+  <p id="finText">Four days, two arghyas, one very happy Chhathi Maiya. Your vrat is complete. Chhath Mahaparv ki hardik shubhkamnayein!</p>
+  <div class="actions">
+    <button class="btn btn-wa" data-wish>Send wishes home</button>
     <button class="btn btn-primary" id="shareBtn">Share the ghat</button>
     <button class="btn btn-ghost" id="stayBtn">Stay on the ghat</button>
   </div>
@@ -181,6 +313,29 @@ footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
 
 <div class="scrim" id="scrim"></div>
 
+<!-- songs -->
+<aside class="drawer" id="geet" aria-labelledby="geetTitle" role="dialog" aria-modal="true">
+  <header><h2 id="geetTitle">Chhath geet</h2><button class="icon-btn" data-close aria-label="Close songs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body">
+    <div class="player" id="player"><span>Pick a geet below. It keeps playing while you walk the ghat.</span></div>
+    <p class="note">Songs play from their official YouTube channels (T-Series Bhakti Sagar and Worldwide Records Bhojpuri). Nothing is copied onto this site.</p>
+    <ul class="songs" id="songList"></ul>
+  </div>
+</aside>
+
+<!-- support -->
+<aside class="drawer" id="support" aria-labelledby="supTitle" role="dialog" aria-modal="true">
+  <header><h2 id="supTitle">Support the creator</h2><button class="icon-btn" data-close aria-label="Close support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div class="body" style="text-align:center">
+    <p style="margin-top:14px">Chhath Ghat Online is free for everyone. If it brought a little bit of home to you this Chhath, you can say thanks with any UPI app.</p>
+    <div class="qr"><img src="./upi-qr.jpg" width="569" height="640" alt="UPI QR code for tanmaypandey.it-2@oksbi"></div>
+    <div class="upi"><code id="upiId">tanmaypandey.it-2@oksbi</code><button class="chip" id="copyUpi">Copy UPI ID</button></div>
+    <a class="btn btn-primary" id="upiLink" href="upi://pay?pa=tanmaypandey.it-2@oksbi&amp;pn=Tanmay&amp;cu=INR&amp;tn=Chhath%20Ghat%20Online" style="display:none;text-decoration:none">Open UPI app</a>
+    <p class="note" style="margin-top:14px">Scan with Google Pay, PhonePe, Paytm or any UPI app. Totally optional.</p>
+  </div>
+</aside>
+
+<!-- guide -->
 <aside class="drawer" id="guide" aria-labelledby="guideTitle" role="dialog" aria-modal="true">
   <header><h2 id="guideTitle">Chhath Puja guide</h2><button class="icon-btn" data-close aria-label="Close guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="body">
@@ -220,8 +375,13 @@ footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
       <li>A diya, sindoor and a lota of water or milk for the arghya</li>
     </ul>
 
-    <h3>Sounds of the ghat</h3>
-    <p>Chhath geet are sung all four days, mostly in Bhojpuri, Maithili and Magahi. The voice of the late Sharda Sinha is so tied to the festival that her songs are the soundtrack of most ghats.</p>
+    <h3>Far from home this Chhath?</h3>
+    <ul>
+      <li>Find a local ghat: many cities set up Chhath ponds in parks and on lakes. Ask the Bihari or Purvanchali samaj near you.</li>
+      <li>Video-call family during both arghyas. Seeing the ghat live is the next best thing.</li>
+      <li>Make thekua at home: atta, gur, ghee, a pinch of saunf, and fry slowly on low flame.</li>
+      <li>Play the geet. Our songs panel has Sharda Sinha ji's classics.</li>
+    </ul>
 
     <h3>Ghat etiquette</h3>
     <ul>
@@ -231,16 +391,7 @@ footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
       <li>Watch children near the water and stay inside the barricades.</li>
       <li>Accept prasad with both hands, and offer it to whoever is near you.</li>
     </ul>
-    <footer class="credit">An original fan-made experience. Dates follow the Kartik Shukla Shashthi panchang for 2026.</footer>
-  </div>
-</aside>
-
-<aside class="drawer" id="basket" aria-labelledby="basketTitle" role="dialog" aria-modal="true">
-  <header><h2 id="basketTitle">Your prasad basket</h2><button class="icon-btn" data-close aria-label="Close basket"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
-  <div class="body">
-    <p id="basketSum" style="margin-top:12px">0 of 7 blessings collected</p>
-    <div class="progress"><i id="basketBar"></i></div>
-    <div class="grid" id="basketGrid"></div>
+    <footer class="credit">An original fan-made experience. Dates follow the Kartik Shukla Shashthi panchang for 2026. Songs belong to their respective labels and are streamed from YouTube.</footer>
   </div>
 </aside>
 
