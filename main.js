@@ -876,11 +876,12 @@ function startDay(i, { fresh = true } = {}) {
   d.tasks.forEach((t) => { const li = document.createElement('li'); li.textContent = t.t; ul.append(li); });
   const s = SONGS.find((x) => x.id === d.song);
   $('#daySong').textContent = `${s.title} · ${s.by}`;
-  $('#daySong').onclick = () => { playSong(s.id); };
+  $('#daySong').onclick = () => { music.userPaused = false; playSong(s.id); if (music.failed) openDrawer('geet'); };
   openModal('dayCard');
 }
 $('#dayGo').addEventListener('click', () => {
   closeModal('dayCard');
+  playDaySong(); // a click, so the browser lets the song start with sound
   const d = curDay();
   const hi = player.name ? `, ${player.name}` : '';
   setTimeout(() => toast(`Din ${d.n}: ${d.title}`, `Follow the golden light${hi}. Your tasks are at the top left.`), 300);
@@ -1194,7 +1195,7 @@ function updatePrompt() {
 function interact() { if (nearest && !uiOpen && !player.action) nearest.it.action(); }
 
 // ---------------------------------------------------------------------------
-// Songs (official YouTube embeds, nothing bundled)
+// Songs: audio-only, streamed through a hidden YouTube player (nothing bundled)
 // ---------------------------------------------------------------------------
 const SONGS = [
   { id: 'L-lzSCH50Cg', title: 'Kartik Mahinwan Ke', by: 'Sharda Sinha', day: 1 },
@@ -1206,36 +1207,109 @@ const SONGS = [
   { id: 'CqKat91cXWs', title: 'Ugihein Sooraj Gosaiyan Hey', by: 'Sharda Sinha', day: 4 },
   { id: 'x9_3sARy_Kw', title: 'Hey Chhathi Maiya', by: 'Sharda Sinha' },
 ];
-function renderSongs(cur) {
+const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+const music = { yt: null, ready: false, failed: false, cur: -1, playing: false, want: null, bad: new Set(), userPaused: false };
+
+function loadYouTube() {
+  window.onYouTubeIframeAPIReady = () => {
+    music.yt = new YT.Player('ytPlayer', {
+      width: 2, height: 2,
+      playerVars: { playsinline: 1, controls: 0, disablekb: 1, rel: 0, origin: location.origin },
+      events: {
+        onReady: () => { music.ready = true; renderSongs(); if (music.want) playSong(music.want); },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.PLAYING) setPlaying(true);
+          else if (e.data === YT.PlayerState.PAUSED) setPlaying(false);
+          else if (e.data === YT.PlayerState.ENDED) { setPlaying(false); nextSong(); }
+        },
+        onError: () => {
+          const s = SONGS[music.cur];
+          if (s) music.bad.add(s.id);
+          toast('Yeh geet abhi nahi chal raha', 'Playing the next one.', 2600);
+          nextSong();
+        },
+      },
+    });
+  };
+  const sc = document.createElement('script');
+  sc.src = 'https://www.youtube.com/iframe_api';
+  sc.onerror = musicUnavailable;
+  document.head.append(sc);
+  setTimeout(() => { if (!music.ready) musicUnavailable(); }, 12000);
+}
+function musicUnavailable() {
+  if (music.ready || music.failed) return;
+  music.failed = true;
+  $('#songNote').textContent = "Songs can't stream on this page, so each one opens on YouTube instead. On the published site they play right here.";
+  $('#autoSong').closest('label').hidden = true;
+  document.querySelector('.np-card').hidden = true;
+  renderSongs();
+}
+function setPlaying(on) {
+  music.playing = on;
+  for (const id of ['#npToggle', '#npToggle2']) {
+    $(id).innerHTML = on ? ICON_PAUSE : ICON_PLAY;
+    $(id).setAttribute('aria-label', on ? 'Pause song' : 'Play song');
+  }
+  $('#nowPlaying').classList.toggle('playing', on);
+  $('#geetBtn').classList.toggle('playing', on);
+  sfx.drone(!on);
+}
+function renderSongs() {
   const ul = $('#songList'); ul.innerHTML = '';
   SONGS.forEach((s, i) => {
     const li = document.createElement('li');
-    const b = document.createElement('button'); b.className = 'song' + (s.id === cur ? ' cur' : '');
-    b.innerHTML = `<span class="n">${s.id === cur ? '♪' : i + 1}</span><span><b></b><small></small></span>${s.day ? `<span class="tag">Din ${s.day}</span>` : ''}`;
-    b.querySelector('b').textContent = s.title; b.querySelector('small').textContent = s.by;
-    b.addEventListener('click', () => playSong(s.id));
+    const cur = i === music.cur && !music.failed;
+    const b = document.createElement(music.failed ? 'a' : 'button');
+    b.className = 'song' + (cur ? ' cur' : '');
+    if (music.failed) { b.href = `https://www.youtube.com/watch?v=${s.id}`; b.target = '_blank'; b.rel = 'noopener'; }
+    b.innerHTML = `<span class="n">${cur ? '♪' : i + 1}</span><span><b></b><small></small></span>${s.day ? `<span class="tag">Din ${s.day}</span>` : ''}`;
+    b.querySelector('b').textContent = s.title;
+    b.querySelector('small').textContent = s.by + (music.bad.has(s.id) ? ' · unavailable' : '');
+    if (!music.failed) b.addEventListener('click', () => { music.userPaused = false; playSong(s.id); });
     li.append(b); ul.append(li);
   });
 }
 function playSong(id) {
-  const s = SONGS.find((x) => x.id === id);
-  const box = $('#player');
-  box.innerHTML = '';
-  const f = document.createElement('iframe');
-  f.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-  f.title = `${s.title} by ${s.by}`;
-  f.allow = 'autoplay; encrypted-media; picture-in-picture';
-  f.referrerPolicy = 'strict-origin-when-cross-origin';
-  f.allowFullscreen = true;
-  box.append(f);
-  renderSongs(id);
+  const i = SONGS.findIndex((x) => x.id === id);
+  const s = SONGS[i];
+  if (music.failed) return;
+  music.cur = i;
   $('#npTitle').textContent = `${s.title} · ${s.by}`;
+  $('#npBig').textContent = s.title; $('#npBy').textContent = s.by;
   $('#nowPlaying').hidden = false;
-  $('#geetBtn').classList.add('playing');
-  sfx.drone(false);
-  if (!$('#geet').classList.contains('on')) openDrawer('geet');
+  if (!music.ready) { music.want = id; $('#npBy').textContent = 'Loading…'; renderSongs(); return; }
+  music.want = null;
+  music.yt.loadVideoById(id);
+  renderSongs();
 }
+function nextSong(step = 1) {
+  if (music.failed) return;
+  for (let k = 1; k <= SONGS.length; k++) {
+    const j = (Math.max(music.cur, 0) + step * k + SONGS.length * k) % SONGS.length;
+    if (!music.bad.has(SONGS[j].id)) return playSong(SONGS[j].id);
+  }
+}
+function toggleSong() {
+  if (music.failed) return openDrawer('geet');
+  if (music.cur < 0) { music.userPaused = false; return playSong(curDay().song); }
+  if (!music.ready) return;
+  if (music.playing) { music.userPaused = true; music.yt.pauseVideo(); }
+  else { music.userPaused = false; music.yt.playVideo(); }
+}
+function playDaySong() {
+  if (!$('#autoSong').checked || music.userPaused || music.failed) return;
+  const id = curDay().song;
+  if (SONGS[music.cur]?.id === id && music.playing) return;
+  playSong(id);
+}
+['#npToggle', '#npToggle2'].forEach((id) => $(id).addEventListener('click', toggleSong));
+['#npNext', '#npNext2'].forEach((id) => $(id).addEventListener('click', () => nextSong(1)));
+$('#npPrev').addEventListener('click', () => nextSong(-1));
+$('#npToggle').innerHTML = $('#npToggle2').innerHTML = ICON_PLAY;
 renderSongs();
+loadYouTube();
 
 // ---------------------------------------------------------------------------
 // Sound (synthesised ambience; songs come from YouTube)

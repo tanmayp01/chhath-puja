@@ -91,9 +91,25 @@ p.lede{color:var(--muted);font-size:17px;line-height:1.55;margin:0 auto 18px;max
 .icon-btn:hover{border-color:var(--saffron)}
 .icon-btn svg{width:22px;height:22px}
 .icon-btn.playing{border-color:var(--saffron);color:var(--saffron)}
-#nowPlaying{position:absolute;right:12px;top:calc(max(12px,env(safe-area-inset-top)) + 56px);pointer-events:auto;max-width:min(300px,60vw);display:flex;align-items:center;gap:8px;background:rgba(26,16,32,.88);border:1px solid var(--saffron);border-radius:999px;padding:6px 12px 6px 10px;font-size:13px}
-#nowPlaying span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#nowPlaying i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--saffron);animation:pulse 1.2s infinite}
+#nowPlaying{position:absolute;right:12px;top:calc(max(12px,env(safe-area-inset-top)) + 56px);pointer-events:auto;max-width:min(320px,62vw);display:flex;align-items:center;gap:2px;background:rgba(26,16,32,.9);border:1px solid var(--saffron);border-radius:999px;padding:3px;font-size:13px}
+body.touch #nowPlaying{top:calc(max(12px,env(safe-area-inset-top)) + 108px)}
+.np-title{display:flex;align-items:center;gap:8px;min-width:0;background:none;border:0;padding:6px 6px;font-size:13px;font-weight:600}
+.np-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-title i{flex:none;width:8px;height:8px;border-radius:50%;background:#7a6a80}
+#nowPlaying.playing .np-title i{background:var(--saffron);animation:pulse 1.2s infinite}
+.np-btn{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--saffron);color:#2a1300;display:grid;place-items:center}
+.np-btn.ghost{background:transparent;color:var(--cream)}
+.np-btn svg{width:18px;height:18px}
+#ytHost{position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0;pointer-events:none;overflow:hidden;z-index:-1}
+.np-card{display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:14px;margin:14px 0 8px}
+.np-card .t{flex:1;min-width:0}
+.np-card b{display:block;font-size:17px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-card small{display:block;font-size:13px;color:var(--muted)}
+.np-card .np-btn{width:48px;height:48px}
+.np-card .np-btn svg{width:22px;height:22px}
+.autoplay{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--muted);margin:4px 0 6px}
+.autoplay input{width:18px;height:18px;accent-color:var(--saffron)}
+a.song{text-decoration:none}
 @keyframes pulse{50%{opacity:.3}}
 #prompt{position:absolute;left:50%;bottom:max(28px,env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(26,16,32,.92);border:1px solid var(--saffron);border-radius:999px;padding:10px 18px;font-weight:600;font-size:16px;opacity:0;transition:opacity .2s;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
 #prompt.on{opacity:1}
@@ -144,7 +160,6 @@ body.touch #say{bottom:calc(max(24px,env(safe-area-inset-bottom)) + 184px)}
 .scrim.on{opacity:1;pointer-events:auto}
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--panel);border-left:1px solid var(--line);z-index:31;transform:translateX(102%);transition:transform .3s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;visibility:hidden}
 .drawer.on{transform:none;visibility:visible}
-#geet{visibility:visible} /* keeps the YouTube player alive while closed */
 .drawer header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px 20px;border-bottom:1px solid var(--line)}
 .drawer header h2{font-family:var(--display);font-weight:400;font-size:26px;margin:0}
 .drawer .body{overflow-y:auto;padding:8px 20px 32px;-webkit-overflow-scrolling:touch}
@@ -172,8 +187,6 @@ td{color:var(--muted);font-variant-numeric:tabular-nums}
 footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
 
 /* songs */
-.player{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;margin:14px 0 6px;display:grid;place-items:center;color:var(--muted);font-size:15px;text-align:center;padding:0}
-.player iframe{width:100%;height:100%;border:0;display:block}
 .songs{list-style:none;padding:0 !important;margin:10px 0 0 !important}
 .song{display:flex;width:100%;align-items:center;gap:12px;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
 .song:hover{border-color:#a16207}
@@ -259,7 +272,11 @@ footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
       <button class="icon-btn" id="muteBtn" aria-label="Mute ambient sound" title="Ambient sound"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
     </div>
   </div>
-  <button id="nowPlaying" data-open="geet" hidden><i></i><span id="npTitle"></span></button>
+  <div id="nowPlaying" hidden>
+    <button class="np-btn" id="npToggle" aria-label="Play song"></button>
+    <button class="np-title" data-open="geet" aria-label="Open the songs list"><i></i><span id="npTitle"></span></button>
+    <button class="np-btn ghost" id="npNext" aria-label="Next song"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5v14l9-7zM16 5h2.5v14H16z"/></svg></button>
+  </div>
   <div id="toast"></div>
   <div id="say" aria-live="polite"><b id="sayWho"></b><span id="sayText"></span></div>
   <div id="prompt"><kbd>E</kbd><span id="promptText"></span></div>
@@ -317,8 +334,14 @@ footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
 <aside class="drawer" id="geet" aria-labelledby="geetTitle" role="dialog" aria-modal="true">
   <header><h2 id="geetTitle">Chhath geet</h2><button class="icon-btn" data-close aria-label="Close songs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="body">
-    <div class="player" id="player"><span>Pick a geet below. It keeps playing while you walk the ghat.</span></div>
-    <p class="note">Songs play from their official YouTube channels (T-Series Bhakti Sagar and Worldwide Records Bhojpuri). Nothing is copied onto this site.</p>
+    <div class="np-card">
+      <div class="t"><b id="npBig">Not playing yet</b><small id="npBy">Each day starts its own geet</small></div>
+      <button class="np-btn ghost" id="npPrev" aria-label="Previous song"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 5v14l-9-7zM5.5 5H8v14H5.5z"/></svg></button>
+      <button class="np-btn" id="npToggle2" aria-label="Play song"></button>
+      <button class="np-btn ghost" id="npNext2" aria-label="Next song"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5v14l9-7zM16 5h2.5v14H16z"/></svg></button>
+    </div>
+    <label class="autoplay"><input type="checkbox" id="autoSong" checked> Play each day's geet automatically</label>
+    <p class="note" id="songNote">Audio streams from the official YouTube uploads (T-Series Bhakti Sagar and Worldwide Records Bhojpuri). Nothing is copied onto this site.</p>
     <ul class="songs" id="songList"></ul>
   </div>
 </aside>
@@ -395,6 +418,7 @@ footer.credit{padding-top:24px;font-size:13px;color:#a8968a}
   </div>
 </aside>
 
+<div id="ytHost" aria-hidden="true"><div id="ytPlayer"></div></div>
 <script type="module" src="./main.js"></script>
 </body>
 </html>
