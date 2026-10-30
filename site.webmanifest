@@ -1,0 +1,11 @@
+{
+  "name": "Chhath Ghat Online",
+  "short_name": "Chhath Ghat",
+  "description": "Live all four days of Chhath Puja on a 3D ghat in your browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1020",
+  "theme_color": "#1a1020",
+  "lang": "en-IN",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
